@@ -1,0 +1,20 @@
+# Dagster Configuration
+dagster:
+  run_coordinator:
+    module: dagster.core.run_coordinator
+    class: QueuedRunCoordinator
+    
+  compute_logs:
+    module: dagster.core.storage.local_compute_log_manager
+    class: LocalComputeLogManager
+    config:
+      base_dir: "/tmp/dagster-compute-logs"
+      
+storage:
+  postgres:
+    postgres_db:
+      username: dagster
+      password: dagster
+      hostname: localhost
+      db_name: dagster
+      port: 5432

@@ -1,0 +1,519 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned to match the local toolchain and the Dockerfile (see ADR 0001).
+  UV_VERSION: "0.11.28"
+  PYTHON_VERSION: "3.12"
+  # Stage 7 infra toolchain (ADR 0018).
+  HELM_VERSION: "v3.16.4"
+  TERRAFORM_VERSION: "1.10.5"
+  CHART_DIR: infrastructure/kubernetes/helm/production-llm-platform
+  TERRAFORM_DIR: infrastructure/terraform
+
+jobs:
+  quality:
+    name: Lint, type check, test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          # Distinct cache key per job (github.job = quality / eval) so the two
+          # jobs don't race to reserve one shared key when running concurrently.
+          cache-suffix: ${{ github.job }}
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      # --frozen: fail if uv.lock is out of sync with pyproject.toml, rather
+      # than silently re-resolving. Keeps CI reproducible.
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      # Each step below fails the job on a non-zero exit — lint or test
+      # failures block the build.
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+
+      - name: Type check (mypy strict)
+        run: uv run mypy
+
+      - name: Unit tests (pytest)
+        env:
+          ENVIRONMENT: test
+        run: uv run pytest -v
+
+  eval:
+    name: RAG eval regression gate (Tier 1)
+    runs-on: ubuntu-latest
+
+    # Required, and hermetic by construction. The Tier 1 evaluator scores
+    # retrieval over the shipped corpus using the offline-hash embeddings (ADR
+    # 0011) and an in-memory cosine store — no Qdrant, no Voyage, no Anthropic, no
+    # key, no network. It exits non-zero when recall@k or MRR drops below the
+    # checked-in baseline minus tolerance (ADR 0017), which fails this job and
+    # blocks the build. Tier 2 (LLM-as-judge) is deliberately NOT here: it costs
+    # money and is opt-in only (ADR 0015/0017).
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          # Distinct cache key per job (github.job = quality / eval) so the two
+          # jobs don't race to reserve one shared key when running concurrently.
+          cache-suffix: ${{ github.job }}
+
+      - name: Set up Python
+        run: uv python install ${{ env.PYTHON_VERSION }}
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: RAG retrieval regression gate
+        env:
+          ENVIRONMENT: test
+        run: uv run python scripts/evaluate.py
+
+  secret-scan:
+    name: Secret scan (gitleaks)
+    runs-on: ubuntu-latest
+
+    # Hermetic secret-scanning gate (Stage 8, ADR 0019). Scans the checked-out
+    # tree with the pinned gitleaks binary and the repo's .gitleaks.toml allowlist
+    # (which exempts ONLY the obviously-fake, documented test-profile fixtures — a
+    # real key in those files still trips the default rules). A clean runner has no
+    # .venv/.env/gl, so this scans the committed surface. Fails the build on any
+    # finding. No network calls to any project service, no secrets, no cost.
+    env:
+      GITLEAKS_VERSION: "8.30.1"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install pinned gitleaks
+        run: |
+          set -euo pipefail
+          curl -fsSL -o /tmp/gitleaks.tar.gz \
+            "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          tar -xzf /tmp/gitleaks.tar.gz -C /tmp gitleaks
+          /tmp/gitleaks version
+
+      - name: Scan for committed secrets
+        # --redact: never echo a matched secret into the public CI log.
+        # --exit-code 1: non-zero (and so a failed build) on any finding.
+        run: /tmp/gitleaks dir . --config .gitleaks.toml --redact --no-banner --exit-code 1
+
+  dependency-scan:
+    name: Dependency vulnerability scan (pip-audit)
+    runs-on: ubuntu-latest
+
+    # Hermetic dependency-vulnerability gate (Stage 8, ADR 0019). Exports the
+    # committed uv.lock to a fully-pinned requirements file and audits it against
+    # the Python advisory database with a pinned pip-audit. Fails on any known
+    # vulnerability; a real finding must be fixed or explicitly justified, never
+    # silently suppressed. Queries the public advisory API only — no project
+    # secrets, no paid API, no cost.
+    env:
+      PIP_AUDIT_VERSION: "2.9.0"
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          version: ${{ env.UV_VERSION }}
+          enable-cache: true
+          cache-suffix: ${{ github.job }}
+
+      # --frozen: audit exactly what is locked, never a re-resolution.
+      - name: Export locked dependencies
+        run: uv export --frozen --no-emit-project --format requirements-txt > requirements-audit.txt
+
+      # Justified, time-boxed skips live in config/pip-audit-ignore.txt (ADR 0019,
+      # addendum 1); a unit test fails once any entry passes its review-by date.
+      - name: Audit locked dependencies
+        run: |
+          set -euo pipefail
+          ignore_args=()
+          while read -r vuln_id _; do
+            ignore_args+=(--ignore-vuln "$vuln_id")
+          done < <(grep -Ev '^[[:space:]]*(#|$)' config/pip-audit-ignore.txt)
+          uvx --from pip-audit==${{ env.PIP_AUDIT_VERSION }} pip-audit -r requirements-audit.txt "${ignore_args[@]}"
+
+  docker:
+    name: Docker build + health verification
+    runs-on: ubuntu-latest
+
+    # Real datastores for the container to connect to. The image defaults to
+    # ENVIRONMENT=prod, which refuses to boot without all three URLs (ADR 0005),
+    # without ANTHROPIC_API_KEY (Stage 3, ADR 0006), and — from Stage 4 — without
+    # VOYAGE_API_KEY (ADR 0011). So /ready in this job does genuine probes, not a
+    # stub, and the boot check exercises the full prod validator.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: platform
+          POSTGRES_PASSWORD: platform
+          POSTGRES_DB: platform
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U platform -d platform"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+      qdrant:
+        # Kept in lockstep with the pinned qdrant-client (1.18.0) — Stage 4 swapped
+        # the raw-httpx probe for the real client, which warns beyond a one-minor
+        # gap (ADR 0012). Matches docker-compose.yml.
+        image: qdrant/qdrant:v1.18.1
+        ports:
+          - 6333:6333
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v4
+
+      # Verification bar: it is not enough for the image to build — the running
+      # container must serve GET /health with 200.
+      - name: Build api image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: production-llm-platform/api:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # Qdrant has no health option above (no shell in its image), so wait for
+      # its HTTP API before starting the API — otherwise /ready races it.
+      - name: Wait for qdrant
+        run: |
+          for i in $(seq 1 30); do
+            curl -fsS http://localhost:6333/readyz >/dev/null 2>&1 && echo "qdrant ready after ${i}s" && exit 0
+            sleep 1
+          done
+          echo "::error::qdrant did not become ready within 30s"
+          exit 1
+
+      # --network host so the container reaches the service containers, which
+      # are published on the runner's localhost. Credentials here are ephemeral
+      # CI-only values, never production secrets.
+      #
+      # ANTHROPIC_API_KEY and VOYAGE_API_KEY are deliberate dummies. The prod
+      # profile refuses to boot without them (ADR 0006, 0011), and this job's whole
+      # point is that a prod-configured container boots and serves /health. Nothing
+      # here calls either provider — /health touches no dependency at all, /ready
+      # probes only the three datastores, and neither embedding nor a model call
+      # happens at startup (the Voyage/Anthropic clients construct without dialling)
+      # — so placeholders satisfy the boot check without CI ever needing a real key
+      # or spending a cent. If a step is ever added that makes a provider call,
+      # these values must not be what backs it.
+      #
+      # Stage 8 (ADR 0019): the prod validator now also refuses to boot without
+      # API_KEYS + API_KEY_HASH_SECRET. We pass the same obviously-fake, documented
+      # test fixtures (allowlisted in .gitleaks.toml) so the prod container boots
+      # AND the authenticated-chat assertion below can present a valid bearer key.
+      - name: Run container
+        run: |
+          docker run -d --name api-ci --network host \
+            -e ENVIRONMENT=prod \
+            -e DATABASE_URL=postgresql://platform:platform@localhost:5432/platform \
+            -e REDIS_URL=redis://localhost:6379/0 \
+            -e QDRANT_URL=http://localhost:6333 \
+            -e ANTHROPIC_API_KEY=sk-ant-ci-not-a-real-key \
+            -e VOYAGE_API_KEY=pa-ci-not-a-real-key \
+            -e API_KEYS=test-principal:231965b3b3f3d6030b500d21b1984e72dbba04d4af29ceacae9bb3a1ee435034 \
+            -e API_KEY_HASH_SECRET=test-pepper-not-a-real-secret \
+            production-llm-platform/api:ci
+
+      - name: Wait for /health to return 200
+        run: |
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/health || true)
+            if [ "$code" = "200" ]; then
+              echo "health OK after ${i}s"
+              curl -s http://localhost:8000/health
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::/health did not return 200 within 30s"
+          docker logs api-ci
+          exit 1
+
+      # /ready must report each datastore as genuinely reachable — a 200 alone
+      # would also pass if the probes were stubbed out.
+      - name: Verify /ready probes every datastore
+        run: |
+          set -euo pipefail
+          body=$(curl -fsS http://localhost:8000/ready | tee /dev/stderr)
+          echo "$body" | grep -q '"status":"ready"'
+          echo "$body" | grep -q '"postgres":"ok"'
+          echo "$body" | grep -q '"redis":"ok"'
+          echo "$body" | grep -q '"qdrant":"ok"'
+
+      - name: Verify /version and /metrics
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:8000/version | tee /dev/stderr | grep -q '"service":"api"'
+          curl -fsS http://localhost:8000/metrics | grep -q 'http_requests_total'
+
+      # Chat is verified on a SECOND container running the `test` profile, not on
+      # the prod one above.
+      #
+      # Since Stage 3 the chat endpoint really calls Anthropic, so the prod
+      # container cannot answer it without a real key — and CI must never need
+      # one (ADR 0009: no CI run may spend money). The `test` profile cannot
+      # construct a real Anthropic client at all; it gets the scripted double, so
+      # the whole HTTP surface — route, schemas, engine seam, SSE framing, the
+      # [DONE] sentinel — is exercised through a real container over real HTTP
+      # with no key and no cost. That is the Stage 2 coverage, preserved.
+      #
+      # What this deliberately does NOT prove is that a real model call works.
+      # Nothing in CI can: see the stage summary's "no contract test" limitation.
+      #
+      # No datastores and no --network host: the test profile sets no URLs, so
+      # this container persists nothing (NullConversationStore) and only needs a
+      # port. 8001 because the prod container already holds 8000 on the host.
+      - name: Run test-profile container (chat, no API key)
+        run: |
+          docker run -d --name api-ci-test -p 8001:8000 \
+            -e ENVIRONMENT=test \
+            production-llm-platform/api:ci
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8001/health || true)
+            if [ "$code" = "200" ]; then echo "test-profile container ready after ${i}s"; exit 0; fi
+            sleep 1
+          done
+          echo "::error::test-profile container did not become ready within 30s"
+          docker logs api-ci-test
+          exit 1
+
+      # Stage 8 (ADR 0019): chat now requires a bearer key. The test-profile image
+      # bakes config/environments/test.env, whose obviously-fake principal/key is
+      # `test-key-not-a-real-secret`. No REDIS_URL is set on this container, so the
+      # rate limiter fails open (ADR 0008/0019) and these functional calls are not
+      # counted — the 429 path is proven by the hermetic unit tests in the
+      # `quality` job and the local container-boot check in the stage summary.
+      - name: Verify auth rejects a missing/invalid key (401, uniform envelope)
+        run: |
+          set -euo pipefail
+          # No Authorization header, and a wrong key, must BOTH be the same 401
+          # shape and must not reveal why (ADR 0019).
+          nokey=$(curl -s -o - -w '\n%{http_code}' http://localhost:8001/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -d '{"messages":[{"role":"user","content":"ping"}]}' | tee /dev/stderr)
+          echo "$nokey" | tail -1 | grep -qx '401'
+          echo "$nokey" | grep -q '"error"'
+          badkey=$(curl -s -o - -w '\n%{http_code}' http://localhost:8001/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer wrong-key' \
+            -d '{"messages":[{"role":"user","content":"ping"}]}' | tee /dev/stderr)
+          echo "$badkey" | tail -1 | grep -qx '401'
+
+      - name: Verify chat completion and SSE streaming (authenticated)
+        run: |
+          set -euo pipefail
+          curl -fsS http://localhost:8001/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer test-key-not-a-real-secret' \
+            -d '{"messages":[{"role":"user","content":"ping"}]}' \
+            | tee /dev/stderr | grep -q '"object":"chat.completion"'
+          stream=$(curl -fsS -N http://localhost:8001/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer test-key-not-a-real-secret' \
+            -d '{"messages":[{"role":"user","content":"ping"}],"stream":true}' | tee /dev/stderr)
+          echo "$stream" | grep -q '"object":"chat.completion.chunk"'
+          echo "$stream" | grep -q 'data: \[DONE\]'
+
+      # The prod container must REFUSE chat rather than pretend. Two distinct
+      # refusals now, and both must land in the uniform error envelope without
+      # leaking internals (the thing that would actually be a defect):
+      #   1. No bearer key  -> 401 at the auth layer (Stage 8, ADR 0019).
+      #   2. Valid bearer key but the baked ANTHROPIC key is a dummy, so the real
+      #      model call fails -> 5xx. This exercises the prod error path past auth.
+      - name: Verify prod-profile chat fails cleanly (401 no key, 5xx past auth)
+        run: |
+          set -euo pipefail
+          # 1. Missing credential -> 401, uniform envelope, nothing leaked.
+          noauth=$(curl -s -o - -w '\n%{http_code}' http://localhost:8000/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -d '{"messages":[{"role":"user","content":"ping"}]}' | tee /dev/stderr)
+          echo "$noauth" | tail -1 | grep -qx '401'
+          echo "$noauth" | grep -q '"error"'
+          # 2. Valid key passes auth; the dummy Anthropic key then 5xx's cleanly.
+          body=$(curl -s -o - -w '\n%{http_code}' http://localhost:8000/v1/chat/completions \
+            -H 'Content-Type: application/json' \
+            -H 'Authorization: Bearer test-key-not-a-real-secret' \
+            -d '{"messages":[{"role":"user","content":"ping"}]}' | tee /dev/stderr)
+          echo "$body" | tail -1 | grep -qE '^5[0-9][0-9]$'
+          echo "$body" | grep -q '"error"'
+          # `!` + `grep -q`, NOT `grep -qv`: -v succeeds whenever ANY line lacks
+          # the string, so it would pass even if the key leaked on another line.
+          ! echo "$body" | grep -q 'sk-ant'
+          ! echo "$body" | grep -qi 'traceback\|anthropic'
+
+      - name: Container logs (always)
+        if: always()
+        run: |
+          docker logs api-ci || true
+          docker logs api-ci-test || true
+
+      - name: Tear down
+        if: always()
+        run: docker rm -f api-ci api-ci-test || true
+
+  helm:
+    name: Helm lint + render
+    runs-on: ubuntu-latest
+
+    # Hermetic — no cluster. `helm lint` catches schema/template errors and
+    # `helm template` proves the chart renders to valid manifests, spot-checking
+    # the probe paths land on /health and /ready (ADR 0018).
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: helm lint
+        run: helm lint "$CHART_DIR"
+
+      - name: helm template (default / prod)
+        run: helm template ci "$CHART_DIR" > /tmp/rendered-prod.yaml
+
+      - name: helm template (dev datastores enabled)
+        run: |
+          helm template ci "$CHART_DIR" \
+            --set devDependencies.enabled=true \
+            --set secrets.anthropicApiKey=ci-not-a-real-key \
+            --set secrets.voyageApiKey=ci-not-a-real-key \
+            > /tmp/rendered-dev.yaml
+
+      - name: Spot-check rendered probe paths and port
+        run: |
+          set -euo pipefail
+          grep -q 'path: /health' /tmp/rendered-dev.yaml
+          grep -q 'path: /ready' /tmp/rendered-dev.yaml
+          grep -q 'containerPort: 8000' /tmp/rendered-dev.yaml
+
+  terraform:
+    name: Terraform fmt + validate
+    runs-on: ubuntu-latest
+
+    # Hermetic — no AWS credentials. `validate` and `fmt -check` never contact
+    # AWS; `init -backend=false` only downloads the provider schema. `plan`/`apply`
+    # are deliberately never run (no account exists) — ADR 0018.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: terraform fmt -check
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform fmt -check -recursive
+
+      - name: terraform init (no backend, no creds)
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform init -backend=false -input=false
+
+      - name: terraform validate
+        working-directory: ${{ env.TERRAFORM_DIR }}
+        run: terraform validate
+
+  kind-deploy:
+    name: kind deploy + /ready verification
+    runs-on: ubuntu-latest
+
+    # The Helm equivalent of the docker job's "container boot is required" bar
+    # (ADR 0018): stand up a real kind cluster, install the chart with the
+    # in-cluster dev datastores, and assert /ready genuinely reports every store
+    # `ok` — a render check alone would not prove the deployment works. Hermetic:
+    # placeholder API keys, no external services, no secrets, no cost. The prod
+    # profile validates the keys are present, not valid; /ready calls no provider.
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: azure/setup-helm@v5
+        with:
+          version: ${{ env.HELM_VERSION }}
+
+      - name: Build api image
+        run: docker build -t production-llm-platform/api:ci .
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          cluster_name: pllm-ci
+
+      - name: Load image into kind
+        run: kind load docker-image production-llm-platform/api:ci --name pllm-ci
+
+      - name: helm install (dev datastores)
+        # Stage 8 (ADR 0019): the prod profile now also refuses to boot without
+        # API_KEYS + API_KEY_HASH_SECRET, so the chart must supply them or the pod
+        # crash-loops and /ready never comes up. Obviously-fake CI fixtures, same
+        # as the other placeholder keys above (allowlisted in .gitleaks.toml).
+        run: |
+          helm install ci-api "$CHART_DIR" \
+            --set image.tag=ci \
+            --set devDependencies.enabled=true \
+            --set secrets.anthropicApiKey=ci-not-a-real-key \
+            --set secrets.voyageApiKey=ci-not-a-real-key \
+            --set secrets.apiKeys=test-principal:231965b3b3f3d6030b500d21b1984e72dbba04d4af29ceacae9bb3a1ee435034 \
+            --set secrets.apiKeyHashSecret=test-pepper-not-a-real-secret
+
+      - name: Wait for rollouts
+        run: |
+          set -euo pipefail
+          for d in "" -postgres -redis -qdrant; do
+            kubectl rollout status "deployment/ci-api-production-llm-platform$d" --timeout=180s
+          done
+
+      - name: Verify /ready reports every datastore ok
+        run: |
+          set -euo pipefail
+          kubectl port-forward svc/ci-api-production-llm-platform 8000:8000 &
+          pf=$!
+          sleep 5
+          body=$(curl -fsS http://localhost:8000/ready | tee /dev/stderr)
+          kill "$pf" || true
+          echo "$body" | grep -q '"status":"ready"'
+          echo "$body" | grep -q '"postgres":"ok"'
+          echo "$body" | grep -q '"redis":"ok"'
+          echo "$body" | grep -q '"qdrant":"ok"'
+
+      - name: Pod state (always)
+        if: always()
+        run: kubectl get pods -o wide || true

@@ -1,0 +1,29 @@
+{
+  "threshold": 0.28,
+  "source": "validated post hoc against test set after bundle creation. Full comparison run against both 0.28 and 0.03.",
+  "justification": "Threshold 0.28 retained as production threshold. Validated against 56962 transaction test set. Chosen over notebook optimal 0.03 because 0.03 generates 4.4x more false alarms (84 vs 19), catches only 4 more frauds, and costs significantly more when operational investigation cost is included alongside the cost matrix. F1 at 0.28 is 83.6% versus 65.2% at 0.03.",
+  "notebook_optimal_threshold": 0.03,
+  "notebook_optimal_source": "notebooks/06_threshold_tuning.ipynb",
+  "performance_at_0_28": {
+    "precision": 0.816,
+    "recall": 0.857,
+    "f1": 0.836,
+    "tp": 84,
+    "fn": 14,
+    "fp": 19,
+    "tn": 56845,
+    "flagged_pct": 0.181,
+    "business_cost": 7190
+  },
+  "performance_at_0_03": {
+    "precision": 0.512,
+    "recall": 0.898,
+    "f1": 0.652,
+    "tp": 88,
+    "fn": 10,
+    "fp": 84,
+    "tn": 56780,
+    "flagged_pct": 0.302,
+    "business_cost": 5840
+  }
+}

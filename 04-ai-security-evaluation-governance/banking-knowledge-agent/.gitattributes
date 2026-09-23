@@ -1,0 +1,16 @@
+# Force LF line endings in the repository and the working tree, regardless of
+# each machine's core.autocrlf setting.
+*.py   text eol=lf
+*.md   text eol=lf
+*.html text eol=lf
+*.yaml text eol=lf
+*.txt  text eol=lf
+*.js   text eol=lf
+*.css  text eol=lf
+*.toml text eol=lf
+# Read inside Linux containers.
+Dockerfile    text eol=lf
+.dockerignore text eol=lf
+.env.example  text eol=lf
+.gitattributes text eol=lf
+.gitignore     text eol=lf

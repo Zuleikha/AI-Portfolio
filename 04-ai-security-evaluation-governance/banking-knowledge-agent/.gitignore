@@ -1,0 +1,57 @@
+# --- Python --------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.pytest_tmp/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# --- Virtual environments ------------------------------------------------
+.venv/
+venv/
+env/
+
+# --- Secrets and local config -- NEVER commit ----------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+
+# --- Runtime artefacts ---------------------------------------------------
+logs/
+*.log
+data/vectorstore/
+*.sqlite3
+*.db
+
+# --- Editors and OS ------------------------------------------------------
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# --- Node (web interface, Stage 9) ---------------------------------------
+node_modules/
+
+# --- Local working files -- not part of the project ----------------------
+# Project brief and workflow rules, supplied by the developer.
+prompt.md
+prompt1.md
+ccp.txt
+# Written by a local Claude Code hook, not by the application.
+docs/decisions/auto-changes.log
+# Reusable token-efficiency workflow notes, kept local.
+ai-dev-token-efficiency-workflow.md
+# Archived instruction files, kept local.
+docs/legacy/
+# Personal how-to-run cheat sheet, kept local.
+docs/HOW_TO_RUN.html
+# Claude Code local settings, per machine.
+.claude/
+# Session to-do list for unfinished stage work, kept local.
+TO_BE_DONE.md

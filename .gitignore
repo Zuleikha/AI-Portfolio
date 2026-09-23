@@ -1,0 +1,35 @@
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pytest_tmp/
+.ipynb_checkpoints/
+
+# Node
+node_modules/
+
+# ML run artefacts
+mlruns/
+
+# Local tool settings
+.claude/
+
+# Redistribution not permitted — fetched at run time
+01-ai-systems-architecture/xml-content-retrieval-service/data/pmc/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Local change log written by editor tooling
+auto-changes.log

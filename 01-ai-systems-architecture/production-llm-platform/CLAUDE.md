@@ -1,0 +1,149 @@
+# CLAUDE.md — project memory
+
+Read at the start of every session. Keep under ~150 lines. Facts only — rationale
+lives in `docs/adr/`.
+
+## Current state — **Stage 10 of 10 (Portfolio), COMPLETE — all stages done.** Version `0.1.0`
+
+`POST /v1/chat/completions` runs a **real LangGraph agent loop against the Anthropic API**
+(`claude-opus-4-8`): reason → tool → observe → answer, bounded by `agent_max_steps`; usage summed.
+History → Postgres behind a Redis cache (`conversation_id`), else stateless. **Stage 4:** corpus
+ingested (LlamaIndex → Voyage → **Qdrant**); `document_search` adds top-level **`citations`**,
+seams **unchanged**. **Stage 5:** `@traced` emits **OTel spans → Collector → Tempo** + Grafana;
+metrics stay on Prometheus (ADR 0016). **Stage 6:** RAG eval (`scripts/evaluate.py`): Tier 1
+recall@k/MRR = **hermetic CI gate** vs `data/eval/baseline.json` (**never lower to pass**); Tier 2
+judge opt-in, never CI (ADR 0017). **Stage 7:** `api` → **K8s via Helm** (`kind`-verified); Terraform (AWS) **validated,
+never applied** (ADR 0018). **Stage 8:** chat gated by **bearer API key** (salted-hash store,
+uniform 401); **Redis per-principal rate limit**, fail-open (429); input/excerpt/egress
+**guardrails** atop the ADR 0014 nonce fence (block only direct override/probe, else log);
+**gitleaks + pip-audit** CI gates (ADR 0019); probe/scrape paths stay unauth. **Stage 9:** **circuit
+breaker** around `LLMClient` (→ **503**, never on a 400); **prompt caching** + deterministic **context
+windowing**; spanmetrics → **service map**; **Locust + chaos runbook** (opt-in, never CI); 2 SLO alerts (ADR 0020).
+**Stage 10 (portfolio, no new capability):** housekeeping (ADR-0020 index row; `pyyaml` explicit dep; Locust fixed → 20
+principals + conv-id, pools 10/10/10 **confirmed**, ADR 0020 add. 3); `docs/demo.md`+`scripts/demo.sh`, `docs/case-study.md` (both → styled `.html` via shared `scripts/doc_render.py`); whole-system request-lifecycle diagram.
+
+Roadmap **`docs/PROJECT_STATUS.md`** (canonical). Detail `docs/stage-summaries/stage-{01..10}.md`. Rationale **`docs/adr/`**
+0001-0020 (0019 = auth/rate-limit/guardrails/CI-scan; 0020 = reliability breaker/caching/windowing/pools/metrics/SLOs, add. 3 = Locust fix).
+
+## Layout
+
+```
+services/api/    app.py · routes/{health,meta,chat} · schemas.py
+                 completions.py = CompletionEngine seam + OrchestratorEngine
+services/agents/ base.py (Agent · ToolAgent) · tools.py (registry, 3 offline tools)
+services/orchestrator/  base.py · graph.py (LangGraph) · llm.py (LLMClient) · conversations.py
+services/retrieval/  embeddings.py (seam) · store.py (Qdrant) · ingest.py · retriever.py · tool.py (document_search — injection boundary)
+services/monitoring/  tracing.py (build_tracer_provider seam · OTLP/Local providers) · base.py (SpanExporter=OTel's)
+services/evaluation/  metrics · dataset · retrieval (RetrievalEvaluator · InMemoryCosineStore) · baseline · judge
+services/security/  auth.py (ApiKeyAuthProvider · salted-hash store) · rate_limit.py (RedisRateLimiter, atomic Lua, fail-open) · guardrails.py (input/excerpt screens); wiring in api/security.py, egress check in retrieval/egress.py
+shared/  config · logging · observability (@traced) · resilience (circuit breaker) · metrics (x-cutting counters) · datastores · migrations · version
+data/corpus/  RAG corpus (ingest.py) · data/eval/  dataset+baseline (evaluate.py) · migrations/  forward-only SQL · tests/ mirrors source · docs/diagrams/ GENERATED SVG · {architecture,case-study,demo}.html GENERATED (build_architecture.py/build_docs.py)
+```
+
+## Conventions
+
+- **Stubs:** future-stage folders get a `README.md` (contract + owning stage) plus an
+  ABC/Protocol whose methods `raise NotImplementedError`. Never a mini-version.
+- **Naming:** `snake_case` funcs, `PascalCase` classes, `_private`. ADRs `NNNN-kebab-title.md`.
+  Stage summaries + verification logs have **fixed** filenames (see PROJECT_STATUS).
+- **Config:** one `Settings` (pydantic-settings) via `get_settings()` (`lru_cache`d).
+  Precedence: OS env > `.env` > `config/environments/<ENV>.env` > defaults. **No secrets
+  committed** — OS env only (a test enforces it). **`prod` requires all three datastore URLs +
+  `ANTHROPIC_API_KEY` + `VOYAGE_API_KEY` + `API_KEYS` + `API_KEY_HASH_SECRET`**; `test` ignores root `.env`.
+- **Datastores:** `DatastoreRegistry.from_settings()` on `app.state.datastores`. No URL =
+  `not_configured`, never dialled. `startup()` concurrent and **never raises** — failures surface on
+  `/ready`, not a crash loop. `/health` must **never** probe (tripwire). Qdrant probe = `get_collections()`.
+- **Hermetic external-hop seams — read ADR 0009/0011/0016 first:** the `test` profile **cannot
+  construct** `AnthropicClient`, `VoyageEmbeddingsClient`, *or* `OTLPTracerProvider` (each raises
+  before its endpoint/key is read). Go via `build_llm_client`/`build_embeddings_client`/`build_tracer_provider`;
+  guard keys on the *profile*, not the key's absence. `test` gets a `LocalTracerProvider`; tracing is **not** a `prod` boot req — unset `OTEL_EXPORTER_OTLP_ENDPOINT` runs untraced, logs it (ADR 0005/0016).
+- **No sampling params.** Opus 4.7+ **rejects `temperature`/`top_p`/`top_k` (400)**; `budget_tokens` gone
+  (use `thinking={"type":"adaptive"}`). `max_tokens` **required**; `ChatCompletionRequest.temperature` kept for wire compat, **not forwarded**.
+- **Agent:** routes call the `CompletionEngine` on `app.state.engine`; `create_app(...,
+  engine=...)` overrides it (stops the lifespan rebuilding it). `ToolRegistry.default()` = 3
+  offline tools; `document_search` added via `with_tools` when Qdrant is up. `Tool.run` is
+  **async**. `calculator` walks an AST allow-list, **never `eval`**. Failing tool → `is_error`.
+- **Retrieval (ADR 0011-0014):** ingestion is an operator action (`scripts/ingest.py`), never a boot
+  hook — **costs money** (Voyage) outside `test`. Qdrant point ids are UUIDv5 of the chunk id (server
+  rejects arbitrary strings; re-ingest idempotent). **Retrieved text is untrusted** — `document_search`
+  nonce-fences excerpts (load-bearing; Stage 8 adds heuristic layers, not immunity); citations are typed, never parsed from text. Widening the corpus changes the threat model.
+- **Security (ADR 0019):** auth/rate-limit/guardrails are **local logic, no hermetic seam** (`test`
+  runs them for real). One `401` shape for missing/bad/wrong (log says why, never the key); store =
+  `principal:HMAC-SHA256(pepper,key)`. Rate limit Redis-atomic, **fail-open + log** (ADR 0008).
+  Guardrails **log events, never the text**; block only direct override/probe on user input (400).
+  gitleaks allowlist keys off the **fake-credential convention** (`not-a-real`/`wrong-key`/`test-raw-key-`), not paths — a real key still trips.
+- **Reliability (ADR 0020):** breaker = `shared/resilience.py` + `CircuitBreakingLLMClient` (wraps `LLMClient`,
+  wired in `app._build_engine`); trips on transport/5xx only (**never a 400**), threshold(5)+cooldown(30s). Prompt
+  caching + tool `cache_control` **inside `AnthropicClient.stream`**. `window_messages` windows the **outbound call
+  only** (state + persisted history untouched). Load/chaos **opt-in, never CI** (`tests/load/`, `docs/runbooks/`); alerts on `shared/metrics.py` counters.
+- **Persistence:** Postgres is source of truth, Redis only caches. Writes **invalidate** (Postgres
+  first, then `DELETE`) — never rewrite. A Redis failure degrades to a Postgres read: the **one**
+  sanctioned exception to fail-loud (ADR 0008). Migrations are plain SQL, forward-only, advisory-locked.
+- **Logging:** `get_logger(__name__)`; log **events** not sentences (`_logger.info("http.request",
+  extra={...})`), one JSON object/line. Never log PII/secrets/tokens (nor queries/excerpts —
+  attacker-influenced). **Tracing (ADR 0016):** `@traced` on new app functions → OTel span carrying
+  **only** `code.function`/`code.namespace` (read at decoration, never call data); error status =
+  exception **type name** only. **Exempt:** `shared/{logging,observability}.py` (recursion), async generators/lifespan, LangGraph nodes.
+- **Errors:** fail loud. Envelope `{"error": {type, message, request_id}}`; 500s never leak
+  internals. Handlers on **Starlette's** `HTTPException`.
+- **Types:** mypy `strict`, everything annotated incl. tests. Narrow with `isinstance` not
+  `# type: ignore`. Depend on narrow Protocols not concrete drivers. **Deps:** `==` pins,
+  `uv.lock` committed, `--frozen` installs.
+- **Tests:** `tests/unit/`, mirror source. Test contracts, not internals. Write the failing test first;
+  never edit a test to make it pass. Switching profiles needs `monkeypatch.setenv` **+**
+  `get_settings.cache_clear()`. Opt-in layers skip by default (`TEST_DATABASE_URL`/`TEST_REDIS_URL`,
+  `TEST_QDRANT_URL`, `RUN_LIVE_CONTRACT_TESTS=1` + keys). `tests/load/` is **never** pytest-collected.
+- **Ending a stage:** `docs/contributing.md` → "Ending a stage" is **canonical** and lists **six**
+  required updates — do all six before committing. **README is one** (it drifts silently).
+- **Container boot is required, not deferrable.** Before self-report, `docker build` + run in **both**
+  `prod` and `test` profiles and curl the endpoints — green `pytest` ≠ a booting container (CI caught
+  two failures a 2-min local boot catches).
+- **Generated doc pages (never hand-edit; `--check` tests fail on drift):** `architecture.html` ← `docs/architecture.md`
+  via `scripts/build_architecture.py`; `case-study.html`/`demo.html` ← `docs/{case-study,demo}.md` via `scripts/build_docs.py`.
+  Shared CSS/shell/markdown render in `scripts/doc_render.py` (one style source, ADR 0010, no CDN/JS). Diagrams: pre-rendered
+  **SVG** in `docs/diagrams/`; rendering needs Node/`npx`, build+`--check` only Python. Mermaid keyword (`graph`,`end`) as a node id fails the render.
+
+## Run / test / lint
+
+```bash
+uv sync                                        # install  (real calls need OS-env ANTHROPIC_API_KEY + VOYAGE_API_KEY)
+uv run uvicorn services.api.app:app --reload   # API only  -> :8000
+docker compose up -d --build                   # full stack  ·  scripts/ingest.py  # ingest corpus -> Qdrant (costs $ outside test)
+uv run python scripts/evaluate.py              # Tier 1 RAG eval + CI regression gate (hermetic)
+pwsh scripts/verify.ps1   # or ./scripts/verify.sh — the whole gate (ruff · format · mypy · pytest · gitleaks · pip-audit)
+```
+
+Endpoints: `/health` `/ready` `/version` `/metrics` `/docs` · `POST /v1/chat/completions` (`Authorization:
+Bearer <key>`; `"stream": true` SSE; optional `conversation_id`; `citations`). Grafana :3001 · Tempo :3200.
+
+## Known environment quirks — this machine, not the code
+
+- **Cross-drive uv / lock-install mismatch.** uv cache on `C:`, repo on `D:`; default hardlink mode fails across
+  drives **silently** (package stays in `uv.lock`, never lands in venv → baffling `ModuleNotFoundError`). Fixed by
+  `link-mode = "copy"` under `[tool.uv]` — do not remove; if a locked pkg won't import diff `uv pip list` vs `uv.lock`. `sniffio`/`pyyaml` are direct deps from this.
+- **Never use the system Python at `D:\Python\Python312`.** Stripped build: a venv from it **segfaults on `import
+  ctypes`** (access violation importing `httpx`). Use `uv python install 3.12 && uv venv --managed-python --python 3.12` (CPython **3.12.13**).
+- **Grafana port 3000 conflicts with `open-webui`** → remapped to **3001**. **Docker Desktop must be running** for
+  live/Qdrant tests (`docker ps` is the real check). **Docker Desktop host port-forward is flaky** here — `curl localhost:8000`
+  can return empty replies (exit 52) while the container serves 200s; run demo/Locust from a peer container on the compose network.
+- **`.git/index.lock` strands = two git actors racing the index, not a code bug.** A recurring
+  **0-byte** lock with **no `git.exe` alive** = a git process hard-killed between create and release.
+  Racers: the **CC harness `git status` poll** + a **standalone Git Bash window in the repo**. Rule:
+  **one git actor at a time**; with no `git.exe` running, deleting the 0-byte lock is safe. (Separate
+  from the Stage-7 Defender `tmp_obj_*` strand, fixed by the folder exclusion — can co-occur.)
+
+## Deferred — do NOT build early
+
+Still deferred by decision: **per-conversation concurrency control** (ADR 0008 gap, not built),
+**LLM summarization** (windowing chosen instead), **Voyage circuit breaking** (only Anthropic wrapped).
+
+## Known issues
+
+- 422 stringifies Pydantic's raw error list into `message`. A datastore failing `connect` at boot
+  stays `unavailable` until restart. **`/ready` does not check schema version** — a failed migration
+  leaves the service reporting ready while every chat query fails (ADR 0007). **`request_id: null` on the
+  Postgres-down 500** (chaos scenario 1) — pre-existing, accepted/deferred (Stage 10, see case-study).
+- **No per-conversation concurrency control** (ADR 0008; also in Deferred above): two concurrent turns on
+  one `conversation_id` collide on `(conversation_id, position)`, second fails loudly. **Editing a doc
+  shorter orphans its tail chunks** in Qdrant — ingestion is upsert-only (ADR 0012).
+- **Hermetic suite can't catch a wrong belief about the real APIs** — run the opt-in live contract test (ADR 0015) when changing `llm.py`/`embeddings.py`.

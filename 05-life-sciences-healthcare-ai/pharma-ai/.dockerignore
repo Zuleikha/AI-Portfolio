@@ -1,0 +1,51 @@
+# Container build context exclusions.
+#
+# These rules were previously (and incorrectly) kept in .gitignore, where they
+# would have excluded the project's real work from any repository. The intent —
+# keeping the image small — is preserved here, which is where it belongs.
+#
+# The image runs apps/api.py, which imports src/molecular_property_analyzer.py.
+# Nothing else is needed at runtime.
+
+.git
+.gitignore
+.env
+.env.*
+
+# Python cache and environments
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+env/
+ENV/
+.conda/
+pharma-ai-env/
+pharma_env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Research and documentation — not needed at runtime
+alphafold_target_pipeline/
+bioactivity-prediction/
+archive/
+notebooks/
+docs/
+images/
+graphify-out/
+scripts/
+*.md
+!README.md
+
+# Generated artefacts and bulky data
+output/
+*.pkl
+*.png
+*.csv
+*.pdb
+*.sdf
+*.pdbqt

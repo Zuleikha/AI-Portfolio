@@ -1,0 +1,93 @@
+# ---------------------------------------------------------------------------
+# OpenTelemetry Collector. Traces → Tempo (Stage 5, ADR 0016), PLUS a
+# spanmetrics/servicegraph metrics pipeline added Stage 9 (ADR 0020).
+#
+# The app's own RED metrics still do NOT pass through here — Prometheus scrapes
+# the API's /metrics directly (Stage 1), and a second pipeline for those same
+# numbers would be two disagreeing sources of truth (the scope cut ADR 0016
+# made, unchanged). What the connectors below produce is a DIFFERENT signal:
+# RED metrics *derived from trace spans*, whose only job is to back Tempo's
+# service-map / node-graph views in Grafana (the ones tempo.yml shipped disabled
+# for exactly this reason). This builds the thing ADR 0016 named as future work;
+# it does not reopen the decision. Still hermetic by construction: this is
+# dev/prod container config only, and `test` never reaches the collector.
+# ---------------------------------------------------------------------------
+
+receivers:
+  otlp:
+    protocols:
+      # Both receivers are on, though the API only speaks http/protobuf
+      # (opentelemetry-exporter-otlp-proto-http). grpc costs nothing to leave
+      # listening and means a sidecar, a script or a future non-Python service
+      # can send traces without editing this file.
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Bounds the collector's own memory before it becomes the outage. Without it a
+  # Tempo stall backs spans up in here until the container is OOM-killed, and a
+  # dead collector is harder to diagnose than a lossy one.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 384
+    spike_limit_mib: 96
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+
+# Connectors sit between pipelines: they consume spans from the traces pipeline
+# and emit metrics into the metrics pipeline below (Stage 9, ADR 0020).
+connectors:
+  # RED metrics (request count, duration histogram) computed per span. Drives the
+  # latency/throughput edges in Tempo's service map.
+  spanmetrics:
+    histogram:
+      explicit:
+        buckets: [10ms, 50ms, 100ms, 250ms, 500ms, 1s, 5s, 30s]
+    # Keep label cardinality bounded — mirror the app's own choice to label by
+    # route template, not raw path (services/api/middleware.py).
+    dimensions:
+      - name: http.route
+    metrics_flush_interval: 15s
+  # Topology: which service calls which, with request/error/duration between
+  # them. This is what actually populates the node graph.
+  servicegraph:
+    latency_histogram_buckets: [10ms, 100ms, 250ms, 1s, 5s, 30s]
+    store:
+      ttl: 2s
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      # Local compose network, not the public internet. Stage 7 (Kubernetes) is
+      # where this hop crosses a boundary that warrants TLS.
+      insecure: true
+  # The derived metrics are exposed in Prometheus text format on :8889 and
+  # scraped by Prometheus as an ADDITIONAL target (the app's own /metrics scrape
+  # is untouched). Additive, not a replacement — ADR 0016/0020.
+  prometheus:
+    endpoint: 0.0.0.0:8889
+
+service:
+  # The collector's own logs. `info` keeps export failures visible — a silent
+  # collector dropping every span is the failure mode worth catching.
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      # memory_limiter first: it must be able to reject before the batcher has
+      # already accepted the memory. The two connectors are exporters of this
+      # pipeline — spans fan out to Tempo AND to the metric generators.
+      processors: [memory_limiter, batch]
+      exporters: [otlp/tempo, spanmetrics, servicegraph]
+    # The connectors' output. Kept a separate pipeline so the app's RED metrics
+    # (Prometheus scraping /metrics) and these span-derived metrics never mix.
+    metrics/spanmetrics:
+      receivers: [spanmetrics, servicegraph]
+      processors: [memory_limiter, batch]
+      exporters: [prometheus]

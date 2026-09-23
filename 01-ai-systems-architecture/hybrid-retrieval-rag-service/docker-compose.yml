@@ -1,0 +1,28 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./data:/app/data   # persist ingested source documents across restarts
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+
+  app:
+    build: .
+    ports:
+      - "8501:8501"
+    env_file: .env
+    depends_on:
+      api:
+        condition: service_healthy
+    command: >
+      streamlit run src/app.py
+        --server.port 8501
+        --server.address 0.0.0.0
+        --server.headless true

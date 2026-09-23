@@ -1,0 +1,28 @@
+# Development config, loaded by src/menuforge/config/settings.py when
+# MENUFORGE_ENV is unset or "development".
+#
+# Precedence: environment variable > this file > the code defaults in settings.py.
+# Every key here is validated on load, and unknown keys are an error.
+#
+# Secrets are never stored here — ANTHROPIC_API_KEY and DATABASE_URL come from
+# the environment, and writing either into this file fails the load.
+app_name: menuforge
+environment: development
+
+logging:
+  level: DEBUG
+  format: json
+
+llm:
+  model: claude-sonnet-5
+  max_retries: 2       # 2 retries => 3 attempts total
+  max_tokens: 8000
+  effort: low
+
+upload:
+  max_bytes: 10485760  # 10 MiB
+  allowed_media_types:
+    - image/png
+    - image/jpeg
+    - image/webp
+    - image/gif

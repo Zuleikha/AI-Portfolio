@@ -1,0 +1,36 @@
+data:
+  external_data_path: data/external
+  huggingface:
+    dataset_name: SetFit/ade_corpus_v2_classification
+    label_column: label
+    sample_size: 50
+    subset: null
+    text_column: text
+  processed_data_path: data/processed
+  raw_data_path: data/raw
+deployment:
+  model_name: production-model
+  model_path: models/trained_model
+  replicas: 3
+  serving_port: 8000
+model_registry:
+  backend: mlflow
+  experiment_name: huggingface-pipeline
+  tracking_uri: http://localhost:5000
+monitoring:
+  alert_email: admin@example.com
+  drift_threshold: 0.1
+  metrics_port: 9090
+pipeline:
+  name: production-ml-pipeline
+  version: 1.0.0
+training:
+  batch_size: 16
+  epochs: 1
+  learning_rate: 2e-5
+  max_length: 128
+  model_type: transformers
+  pretrained_model: microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext
+  task_type: classification
+  validation_split: 0.2
+  warmup_steps: 100

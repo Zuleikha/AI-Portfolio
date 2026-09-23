@@ -1,0 +1,13 @@
+.env
+chroma_store/
+__pycache__/
+*.pyc
+.pytest_cache/
+tests/
+.git/
+.gitignore
+README.md
+ROADMAP.md
+DECISIONS.md
+CLAUDE.md
+graphify-out/

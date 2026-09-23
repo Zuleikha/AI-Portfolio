@@ -1,0 +1,66 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "xml-content-retrieval-service"
+version = "1.0.0"
+description = "Retrieval over structured XML documentation: DITA topic/section boundaries become the chunk boundaries, and the document hierarchy survives into the vector store as filterable metadata"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+dependencies = [
+    # API
+    "fastapi>=0.115.0,<1",
+    "uvicorn[standard]>=0.30.0,<1",
+    "pydantic>=2.9.0,<3",
+    # Retrieval
+    "chromadb>=0.5.15,<0.6",
+    "openai>=1.51.0,<2",
+]
+
+[project.optional-dependencies]
+# The Streamlit front end. The API serves without it.
+ui = [
+    "streamlit>=1.39.0,<2",
+    "requests>=2.32.0,<3",
+]
+dev = [
+    "pytest>=8.3.0,<9",
+    # Required by fastapi.testclient.TestClient
+    "httpx>=0.27.0,<1",
+    "ruff>=0.6.0",
+    # eval/run_comparison.py loads the labelled question sets from YAML. The
+    # evaluation harness is dev-only — it is not part of the shipped `app` package.
+    "pyyaml>=6.0.1",
+]
+
+[tool.setuptools]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# app/ imports as a package (`from app.parser import ...`), so the repo root
+# must be importable. See docs/DECISIONS.md, decision 8.
+pythonpath = ["."]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency system requires these calls in argument defaults; they are
+# declarations, not the mutable-default trap B008 exists to catch.
+extend-immutable-calls = [
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.Header",
+]

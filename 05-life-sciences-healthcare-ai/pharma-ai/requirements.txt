@@ -1,0 +1,10 @@
+rdkit-pypi
+pandas
+numpy<2.0
+matplotlib
+py3Dmol
+biopython
+scikit-learn
+fastapi
+uvicorn
+pydantic

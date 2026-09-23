@@ -1,0 +1,45 @@
+# Build context for the Docker image (docs/HANDOVER.md §12). Keeps secrets,
+# local state and anything the image does not run out of the build.
+
+# --- Secrets -- never in an image ------------------------------------------
+# **/ matches the root too, and also a stray file inside app/ or data/,
+# which COPY would otherwise carry into the image (Stage 13, U6).
+**/.env
+**/.env.*
+**/*.pem
+**/*.key
+secrets
+
+# --- Version control and local tooling -------------------------------------
+.git
+.gitignore
+.gitattributes
+.claude
+.vscode
+.idea
+
+# --- Python environments and caches ----------------------------------------
+.venv
+venv
+env
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.pytest_tmp
+.mypy_cache
+.ruff_cache
+.coverage
+htmlcov
+
+# --- Runtime state -- rebuilt inside the image or mounted ------------------
+logs
+data/vectorstore
+
+# --- Documentation and local notes -- not needed to run --------------------
+docs
+*.md
+ccp.txt
+
+# Dockerfile, compose.yaml and .dockerignore stay in the context: the test
+# target copies them so tests/test_container_config.py runs inside the image.
+# The runtime target never copies them.

@@ -1,0 +1,27 @@
+services:
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - DATA_DIR=/app/data
+      - CHROMA_DIR=/app/chroma_store
+    volumes:
+      - chroma_data:/app/chroma_store
+
+  ui:
+    build: .
+    command: streamlit run app/ui.py --server.port 8501 --server.address 0.0.0.0
+    ports:
+      - "8501:8501"
+    environment:
+      - API_URL=http://api:8000
+    healthcheck:
+      disable: true   # image healthcheck targets the API; not meaningful for the UI
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  chroma_data:

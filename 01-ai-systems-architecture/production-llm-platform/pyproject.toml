@@ -1,0 +1,220 @@
+[project]
+name = "production-llm-platform"
+version = "0.1.0"
+description = "A production-grade LLM platform — built in 10 stages. Stage 1: foundation and tooling."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = { text = "MIT" }
+authors = [{ name = "production-llm-platform maintainers" }]
+
+# Base runtime dependencies — everything required to run the API today.
+# Libraries arrive here in one of two ways: pinned straight in when the stage
+# that needs them lands, or declared as an optional extra a stage early and
+# promoted once they are actually wired. Stages 2 (datastores), 3 (orchestration),
+# 4 (retrieval) and 5 (observability) each promoted their extra on the stage it
+# stopped being optional; no extras remain.
+# All versions are pinned exactly (== ) — see ADR 0001 for rationale.
+dependencies = [
+    "fastapi==0.139.0",
+    "uvicorn[standard]==0.51.0",
+    "pydantic==2.13.4",
+    "pydantic-settings==2.14.2",
+    "prometheus-client==0.25.0",
+    # Datastore drivers — promoted out of the `datastores` extra in Stage 2,
+    # when the API actually started connecting to Postgres and Redis (ADR 0005).
+    "asyncpg==0.31.0",
+    "redis==8.0.1",
+    # Qdrant is reached over its HTTP API via a pooled AsyncClient rather than
+    # `qdrant-client`, which is a Stage 4 (retrieval) dependency — ADR 0005.
+    # httpx is therefore a runtime dep from Stage 2, not just a test-only one.
+    "httpx==0.28.1",
+    # Normally transitive (via anyio -> httpx). Pinned as an explicit direct
+    # dependency to work around a cross-drive uv install quirk on this machine
+    # where it was silently not installed, causing an import-time crash. See
+    # "Known environment quirks" in CLAUDE.md.
+    "sniffio>=1.3.1",
+    # Agent orchestration — promoted out of the `orchestration` extra in Stage 3,
+    # when the chat endpoint started running a real LangGraph agent loop against
+    # the Anthropic API (ADR 0006). `langchain` was NOT promoted: the graph calls
+    # the Anthropic SDK directly, so the LangChain core abstractions buy nothing
+    # and cost a large transitive tree. See ADR 0006.
+    "anthropic==1.6.0",
+    "langgraph==1.2.9",
+    # Retrieval / RAG — promoted out of the `retrieval` extra in Stage 4, when
+    # the chat endpoint started grounding answers in retrieved documents and
+    # ingestion started putting data in Qdrant (ADR 0011/0012).
+    #
+    # `llama-index-core`, NOT the `llama-index` meta-package: the meta-package
+    # depends on llama-index-llms-openai and llama-index-embeddings-openai, so
+    # promoting it would install a rival vendor's SDK into the base image to run
+    # an Anthropic + Voyage stack. Only the ingestion primitives are used
+    # (Document, SentenceSplitter), and those live in core. Same call, and the
+    # same reasoning, as dropping `langchain` in Stage 3 — see ADR 0011.
+    "llama-index-core==0.14.23",
+    # Embeddings. Anthropic ships no embeddings API; Voyage is the documented
+    # pairing for Claude RAG workloads (ADR 0011).
+    "voyageai==0.5.0",
+    # Qdrant's own client, replacing Stage 2's raw-httpx /readyz probe now that
+    # the collection actually holds vectors (ADR 0012).
+    "qdrant-client==1.18.0",
+    # Observability — promoted out of the `observability` extra in Stage 5, when
+    # `@traced` stopped being log-only and started emitting real OTel spans that
+    # every request exports to a collector (ADR 0016). The whole extra moved: the
+    # API and SDK are on the request path of every traced call, and the FastAPI
+    # instrumentation is wired in the lifespan.
+    #
+    # api/sdk/exporter move in lockstep on 1.43.0; the instrumentation packages
+    # version separately (0.64b0 is the sibling release of 1.43.0) — that split is
+    # upstream's, not ours.
+    "opentelemetry-api==1.43.0",
+    "opentelemetry-sdk==1.43.0",
+    "opentelemetry-instrumentation-fastapi==0.64b0",
+    # OTLP over http/protobuf, NOT grpc. Not a weight argument — `grpcio` is
+    # already in the tree via qdrant-client and `requests` via voyageai, so
+    # neither exporter adds a new compiled dependency. The reasons are that
+    # http/protobuf keeps the collector's :4318 receiver curl-able when a trace
+    # goes missing, and that it avoids a second package competing with
+    # qdrant-client over `grpcio`'s version range. The collector receives both
+    # protocols, so nothing downstream depends on the choice. See ADR 0016.
+    "opentelemetry-exporter-otlp-proto-http==1.43.0",
+    # Imported directly by tests/unit/test_load_profile_compose.py (Stage 9) to
+    # parse the docker-compose override as the drift guard's fixture — a direct
+    # use, but present only transitively (via llama-index-core, opentelemetry, …)
+    # until now. Declared explicitly at the currently-locked version so it can
+    # never silently vanish from the resolved tree, the same latent-risk fix
+    # already applied to `sniffio` above (Stage 10 housekeeping).
+    "pyyaml==6.0.3",
+]
+
+[project.optional-dependencies]
+# --- Future-stage libraries: DECLARED and pinned now, wired up in later stages. ---
+# NOTE: the `orchestration` extra (langchain, langgraph) was removed in Stage 3.
+# `langgraph` and `anthropic` are now base dependencies — the API runs the agent
+# loop on every chat request and they are no longer optional. `langchain` was
+# dropped entirely rather than promoted (ADR 0006).
+# NOTE: the `retrieval` extra (llama-index, qdrant-client) was removed in Stage 4
+# — retrieval is now a base concern. See the base dependencies above for why
+# `llama-index-core` was promoted in place of the `llama-index` meta-package.
+# NOTE: the `observability` extra (opentelemetry api/sdk/instrumentation-fastapi)
+# was removed in Stage 5 — tracing is now a base concern. `@traced` sits on ~30
+# call sites and emits a real span on every one, so the SDK is no more optional
+# than the logger is. The OTLP exporter was added at the same time (ADR 0016).
+# NOTE: the `datastores` extra (redis, asyncpg) was removed in Stage 2 — those
+# drivers are now base dependencies, since the API connects to Postgres and
+# Redis on every startup and they are no longer optional.
+#
+# No extras remain. Every stage that declared one has since either promoted it to
+# a base dependency or dropped it; the table is kept empty rather than deleted so
+# the next stage that needs a staged dependency has the pattern in front of it.
+
+[dependency-groups]
+# Developer tooling — installed by `uv sync` by default, excluded from images.
+dev = [
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    # NOTE: httpx moved to base dependencies in Stage 2 (pooled Qdrant client);
+    # TestClient still relies on it, but it is no longer dev-only.
+    "ruff==0.15.21",
+    "mypy==2.3.0",
+    "pre-commit==4.6.0",
+    "markdown-it-py==4.0.0",
+]
+
+[tool.uv]
+# Application project, not a distributable library: uv should manage the venv
+# and install dependencies, but not attempt to build/install this repo as a
+# package. Packages are imported via the repo-root path (see pytest config).
+package = false
+
+# Copy files into the venv instead of hardlinking them from uv's cache.
+# uv's default hardlink mode fails when the cache and the venv are on different
+# drives — and it fails SILENTLY, leaving a package in uv.lock but absent from
+# the venv, which surfaces later as a baffling ModuleNotFoundError or an
+# import-time crash. This repo lives on D: while the cache defaults to C:, and
+# that has already bitten twice here.
+#
+# Declared here rather than relying on the UV_LINK_MODE env var so it also
+# protects anyone who clones the repo onto a drive other than their uv cache.
+# The env var still takes precedence for anyone who needs to override it.
+link-mode = "copy"
+
+# ---------------------------------------------------------------------------
+# Ruff — linter + formatter (replaces black + isort + flake8). See ADR 0001.
+# ---------------------------------------------------------------------------
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["services", "shared", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "TID", # flake8-tidy-imports
+    "RUF", # ruff-specific rules
+]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["B011"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+# ---------------------------------------------------------------------------
+# mypy — static type checking in STRICT mode. See ADR 0001.
+# ---------------------------------------------------------------------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+no_implicit_reexport = true
+plugins = ["pydantic.mypy"]
+files = ["services", "shared", "tests", "scripts"]
+# tests/load/ (Locust) is not part of the hermetic suite and `locust` is not a
+# locked dependency (installed transiently per run — ADR 0020), so it has no stubs
+# here and must not be type-checked as part of the gate.
+exclude = ["^tests/load/"]
+# `scripts/` is not a package and is imported by path in tests (the build script
+# is a CLI, not a library). Tell mypy where to resolve it from.
+mypy_path = "scripts"
+
+[[tool.mypy.overrides]]
+# Third-party libs without bundled type hints — do not fail strict mode on them.
+# asyncpg ships no py.typed marker (as of 0.31.0); redis and httpx do. PyYAML 6.0
+# ships no py.typed either (stubs live in the separate types-PyYAML); it is used
+# only by the compose-override drift-guard test (tests/unit/test_load_profile_compose.py).
+module = ["prometheus_client.*", "asyncpg.*", "yaml", "yaml.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# voyageai DOES ship py.typed, but its __init__ re-exports implicitly
+# (`from voyageai.client_async import AsyncClient`, no __all__, no `as` alias).
+# Our `no_implicit_reexport = true` therefore rejects the documented public
+# path `voyageai.AsyncClient`. Scoped to voyageai's own modules: it relaxes how
+# mypy reads THAT package, not how it checks ours. The alternative — importing
+# `voyageai.client_async.AsyncClient` — would bind us to an internal module path
+# to work around someone else's packaging.
+module = ["voyageai.*"]
+implicit_reexport = true
+
+# ---------------------------------------------------------------------------
+# pytest
+# ---------------------------------------------------------------------------
+[tool.pytest.ini_options]
+minversion = "8.0"
+# Repo root on the path so `import shared` / `import services...` works without
+# packaging the project (package = false above).
+pythonpath = ["."]
+testpaths = ["tests"]
+addopts = "-ra -q --strict-markers"
+asyncio_mode = "auto"

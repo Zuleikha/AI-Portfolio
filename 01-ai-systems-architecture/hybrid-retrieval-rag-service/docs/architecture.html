@@ -1,0 +1,219 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture — Hybrid Retrieval RAG Service</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --panel: #f7f8fa;
+    --ink: #16202e;
+    --muted: #5b6675;
+    --line: #d3d9e0;
+    --api: #4f5bd6;
+    --api-fill: #e8eefc;
+    --data: #2f9366;
+    --data-fill: #e6f5ee;
+    --ext: #bf7d16;
+    --ext-fill: #fbefd9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c;
+      --panel: #191f27;
+      --ink: #e7ecf2;
+      --muted: #9aa7b6;
+      --line: #333d4a;
+      --api: #97a3ff;
+      --api-fill: #232a4a;
+      --data: #6cd3a4;
+      --data-fill: #16332a;
+      --ext: #f0bf6a;
+      --ext-fill: #33280f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 2rem 1.25rem 4rem;
+    background: var(--bg);
+    color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 2rem; }
+  h2 { font-size: 1.05rem; margin: 2.5rem 0 .75rem; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; overflow-x: auto; }
+  svg { display: block; min-width: 720px; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-top: 1rem; font-size: .85rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: .45rem; }
+  .swatch { width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-top: .5rem; }
+  th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .87em; }
+  .node-label { font: 600 13px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .node-sub { font: 400 11px ui-monospace, SFMono-Regular, Consolas, monospace; }
+  .edge-label { font: 400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .group-label { font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Hybrid Retrieval RAG Service</h1>
+  <p class="sub">Component and data flow. Two retrieval legs fuse before reranking; only the top 3 chunks reach the model.</p>
+
+  <h2>Query path</h2>
+  <figure>
+    <svg viewBox="0 0 940 470" role="img" aria-label="Query flows from the Streamlit UI through FastAPI into the pipeline, splitting into dense and sparse retrieval legs which fuse via Reciprocal Rank Fusion, then rerank and generate.">
+      <defs>
+        <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- group backgrounds -->
+      <rect x="176" y="16" width="470" height="438" rx="10" fill="none" stroke="var(--line)" stroke-dasharray="4 4"/>
+      <text x="192" y="38" class="group-label" fill="var(--muted)">In-process pipeline</text>
+
+      <!-- UI -->
+      <g color="var(--muted)">
+        <rect x="16" y="180" width="130" height="52" rx="8" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="81" y="203" text-anchor="middle" class="node-label" fill="var(--ink)">Streamlit UI</text>
+        <text x="81" y="219" text-anchor="middle" class="node-sub" fill="var(--muted)">:8501</text>
+        <path d="M 146 206 L 190 206" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" fill="none"/>
+      </g>
+
+      <!-- FastAPI -->
+      <g color="var(--api)">
+        <rect x="192" y="172" width="132" height="68" rx="8" fill="var(--api-fill)" stroke="var(--api)" stroke-width="1.5"/>
+        <text x="258" y="196" text-anchor="middle" class="node-label" fill="var(--ink)">FastAPI</text>
+        <text x="258" y="212" text-anchor="middle" class="node-sub" fill="var(--muted)">/query /ingest</text>
+        <text x="258" y="228" text-anchor="middle" class="node-sub" fill="var(--muted)">/metrics /health</text>
+        <path d="M 324 206 L 368 206" stroke="currentColor" stroke-width="1.5" marker-end="url(#arrow)" fill="none"/>
+      </g>
+
+      <!-- Pipeline -->
+      <g color="var(--api)">
+        <rect x="370" y="172" width="120" height="68" rx="8" fill="var(--api-fill)" stroke="var(--api)" stroke-width="1.5"/>
+        <text x="430" y="202" text-anchor="middle" class="node-label" fill="var(--ink)">RAGPipeline</text>
+        <text x="430" y="220" text-anchor="middle" class="node-sub" fill="var(--muted)">orchestration</text>
+      </g>
+
+      <!-- split to two legs -->
+      <g color="var(--api)">
+        <path d="M 490 192 L 520 192 L 520 96 L 556 96" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+        <path d="M 490 220 L 520 220 L 520 300 L 556 300" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+        <text x="528" y="132" class="edge-label" fill="var(--muted)">dense</text>
+        <text x="528" y="284" class="edge-label" fill="var(--muted)">sparse</text>
+      </g>
+
+      <!-- dense leg -->
+      <g color="var(--data)">
+        <rect x="558" y="70" width="126" height="52" rx="8" fill="var(--data-fill)" stroke="var(--data)" stroke-width="1.5"/>
+        <text x="621" y="92" text-anchor="middle" class="node-label" fill="var(--ink)">Pinecone ANN</text>
+        <text x="621" y="108" text-anchor="middle" class="node-sub" fill="var(--muted)">top 10</text>
+      </g>
+      <!-- sparse leg -->
+      <g color="var(--data)">
+        <rect x="558" y="274" width="126" height="52" rx="8" fill="var(--data-fill)" stroke="var(--data)" stroke-width="1.5"/>
+        <text x="621" y="296" text-anchor="middle" class="node-label" fill="var(--ink)">BM25</text>
+        <text x="621" y="312" text-anchor="middle" class="node-sub" fill="var(--muted)">top 10</text>
+      </g>
+
+      <!-- embedder feeding dense -->
+      <g color="var(--ext)">
+        <rect x="716" y="70" width="132" height="52" rx="8" fill="var(--ext-fill)" stroke="var(--ext)" stroke-width="1.5"/>
+        <text x="782" y="92" text-anchor="middle" class="node-label" fill="var(--ink)">Cohere embed</text>
+        <text x="782" y="108" text-anchor="middle" class="node-sub" fill="var(--muted)">v3.0 · 1024-d</text>
+        <path d="M 716 96 L 690 96" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+      </g>
+
+      <!-- RRF -->
+      <g color="var(--api)">
+        <path d="M 621 122 L 621 160" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+        <path d="M 621 274 L 621 236" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+        <rect x="552" y="164" width="138" height="56" rx="8" fill="var(--api-fill)" stroke="var(--api)" stroke-width="1.5"/>
+        <text x="621" y="187" text-anchor="middle" class="node-label" fill="var(--ink)">RRF fusion</text>
+        <text x="621" y="204" text-anchor="middle" class="node-sub" fill="var(--muted)">Σ 1/(60+rank)</text>
+      </g>
+
+      <!-- rerank -->
+      <g color="var(--ext)">
+        <path d="M 690 192 L 716 192" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+        <rect x="716" y="164" width="132" height="56" rx="8" fill="var(--ext-fill)" stroke="var(--ext)" stroke-width="1.5"/>
+        <text x="782" y="187" text-anchor="middle" class="node-label" fill="var(--ink)">Cohere rerank</text>
+        <text x="782" y="204" text-anchor="middle" class="node-sub" fill="var(--muted)">v3.5 → top 3</text>
+      </g>
+
+      <!-- generation -->
+      <g color="var(--ext)">
+        <path d="M 782 220 L 782 380 L 730 380" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+        <rect x="592" y="354" width="136" height="56" rx="8" fill="var(--ext-fill)" stroke="var(--ext)" stroke-width="1.5"/>
+        <text x="660" y="377" text-anchor="middle" class="node-label" fill="var(--ink)">Claude</text>
+        <text x="660" y="394" text-anchor="middle" class="node-sub" fill="var(--muted)">sonnet-4-6</text>
+      </g>
+
+      <!-- answer back -->
+      <g color="var(--muted)">
+        <path d="M 592 382 L 258 382 L 258 240" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#arrow)"/>
+        <text x="360" y="374" class="edge-label" fill="var(--muted)">answer + citations + per-stage latency</text>
+      </g>
+    </svg>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--api-fill);border-color:var(--api)"></i> Application code</span>
+      <span><i class="swatch" style="background:var(--data-fill);border-color:var(--data)"></i> Retrieval / storage</span>
+      <span><i class="swatch" style="background:var(--ext-fill);border-color:var(--ext)"></i> Hosted model API</span>
+    </div>
+  </figure>
+
+  <h2>Ingestion path</h2>
+  <figure>
+    <svg viewBox="0 0 940 130" role="img" aria-label="Uploaded documents are chunked on sentence boundaries, embedded by Cohere, and upserted into Pinecone.">
+      <g color="var(--muted)">
+        <rect x="16" y="38" width="140" height="52" rx="8" fill="var(--panel)" stroke="var(--line)" stroke-width="1.5"/>
+        <text x="86" y="61" text-anchor="middle" class="node-label" fill="var(--ink)">Upload / data/raw</text>
+        <text x="86" y="77" text-anchor="middle" class="node-sub" fill="var(--muted)">pdf · txt · md</text>
+        <path d="M 156 64 L 194 64" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+      </g>
+      <g color="var(--api)">
+        <rect x="196" y="38" width="150" height="52" rx="8" fill="var(--api-fill)" stroke="var(--api)" stroke-width="1.5"/>
+        <text x="271" y="61" text-anchor="middle" class="node-label" fill="var(--ink)">Chunker</text>
+        <text x="271" y="77" text-anchor="middle" class="node-sub" fill="var(--muted)">512 tok · 64 overlap</text>
+        <path d="M 346 64 L 384 64" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+      </g>
+      <g color="var(--ext)">
+        <rect x="386" y="38" width="150" height="52" rx="8" fill="var(--ext-fill)" stroke="var(--ext)" stroke-width="1.5"/>
+        <text x="461" y="61" text-anchor="middle" class="node-label" fill="var(--ink)">Cohere embed</text>
+        <text x="461" y="77" text-anchor="middle" class="node-sub" fill="var(--muted)">search_document</text>
+        <path d="M 536 64 L 574 64" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arrow)"/>
+      </g>
+      <g color="var(--data)">
+        <rect x="576" y="38" width="150" height="52" rx="8" fill="var(--data-fill)" stroke="var(--data)" stroke-width="1.5"/>
+        <text x="651" y="61" text-anchor="middle" class="node-label" fill="var(--ink)">Pinecone upsert</text>
+        <text x="651" y="77" text-anchor="middle" class="node-sub" fill="var(--muted)">serverless index</text>
+      </g>
+    </svg>
+  </figure>
+
+  <h2>Module responsibilities</h2>
+  <table>
+    <thead><tr><th>Module</th><th>File</th><th>Hides</th></tr></thead>
+    <tbody>
+      <tr><td>Ingestion</td><td><code>src/ingestion/ingest.py</code></td><td>Document loading, text extraction, per-file error isolation</td></tr>
+      <tr><td>Chunking</td><td><code>src/rag/chunker.py</code></td><td>Sentence boundaries, token counting, overlap</td></tr>
+      <tr><td>Embedding</td><td><code>src/rag/embedder.py</code></td><td>Hosted embedding API, per-side <code>input_type</code></td></tr>
+      <tr><td>Vector store</td><td><code>src/store/pinecone_store.py</code></td><td>Index lifecycle, upsert, pagination</td></tr>
+      <tr><td>Retrieval</td><td><code>src/rag/retriever.py</code></td><td>Two legs, RRF fusion, dedup</td></tr>
+      <tr><td>Reranking</td><td><code>src/rag/reranker.py</code></td><td>Rerank call plus no-key and failure fallbacks</td></tr>
+      <tr><td>Generation</td><td><code>src/rag/generator.py</code></td><td>Prompt assembly, citation rules, token accounting</td></tr>
+      <tr><td>Orchestration</td><td><code>src/rag/pipeline.py</code></td><td>Stage ordering, timing, conversation history</td></tr>
+      <tr><td>API</td><td><code>src/api/main.py</code></td><td>HTTP shape, validation, status codes, lifespan</td></tr>
+      <tr><td>Monitoring</td><td><code>src/monitoring/metrics.py</code></td><td>Log configuration, counters, rolling window</td></tr>
+    </tbody>
+  </table>
+</main>
+</body>
+</html>

@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Pharma AI Learning Roadmap</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+* {
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Comic Sans MS', 'Arial', sans-serif;
+  margin: 0;
+  padding: 20px;
+  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+  line-height: 1.8;
+  font-size: 16px;
+}
+
+.container {
+  max-width: 900px;
+  margin: 0 auto;
+  background: white;
+  padding: 30px;
+  border-radius: 15px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+h1 {
+  color: #5d4e6d;
+  text-align: center;
+  font-size: 28px;
+  margin-bottom: 30px;
+  letter-spacing: 0.5px;
+}
+
+h2 {
+  color: #6b5b95;
+  font-size: 22px;
+  margin-top: 30px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background: linear-gradient(135deg, #e8d5ff 0%, #d5e8ff 100%);
+  border-radius: 8px;
+  letter-spacing: 0.3px;
+}
+
+h3 {
+  color: #7b6d8d;
+  font-size: 18px;
+  margin-top: 20px;
+  margin-bottom: 10px;
+  letter-spacing: 0.2px;
+}
+
+.week {
+  margin-bottom: 35px;
+  padding: 20px;
+  border: 2px solid #d5e8ff;
+  border-radius: 12px;
+  background: #fafcff;
+}
+
+label {
+  display: block;
+  padding: 12px;
+  margin-bottom: 8px;
+  background: white;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid #e8e8e8;
+  font-size: 15px;
+  letter-spacing: 0.3px;
+}
+
+label:hover {
+  background: #f0f8ff;
+  border-color: #b8d4f1;
+}
+
+input[type=checkbox] {
+  transform: scale(1.5);
+  margin-right: 15px;
+  cursor: pointer;
+}
+
+input[type=checkbox]:checked + span {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+
+#progress-container {
+  background: #e8e8e8;
+  border-radius: 10px;
+  margin-bottom: 30px;
+  height: 30px;
+  overflow: hidden;
+}
+
+#progress {
+  height: 100%;
+  background: linear-gradient(90deg, #a8d8ea 0%, #aa96da 100%);
+  width: 0%;
+  color: white;
+  text-align: center;
+  line-height: 30px;
+  font-weight: bold;
+  transition: width 0.3s;
+  letter-spacing: 1px;
+}
+
+.new-badge {
+  display: inline-block;
+  background: #ffcad4;
+  color: #c9184a;
+  padding: 3px 8px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-weight: bold;
+  margin-left: 10px;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+<h1>Pharma AI Learning Roadmap</h1>
+
+<div id="progress-container">
+  <div id="progress">0%</div>
+</div>
+
+<h2>Week 1 – Protein Structure & Pocket Detection</h2>
+<div class="week">
+  <h3>DHFR Pipeline: Phases 1–2</h3>
+  
+  <label>
+    <input type="checkbox">
+    <span>Download & inspect DHFR structure</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Clean structure (remove waters/ions)</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Add hydrogens + protonation (pH 7.4)</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Define docking box</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Run fpocket + document pockets</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Visualize pockets in PyMOL</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Validate vs literature</span>
+  </label>
+</div>
+
+<h2>Week 2 – Ligand Prep & Docking</h2>
+<div class="week">
+  <h3>DHFR Pipeline: Phases 3–4</h3>
+  
+  <label>
+    <input type="checkbox">
+    <span>Build ligand library</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Standardize SMILES (RDKit)</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Generate 3D conformers + minimization</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Protonation at pH 7.4</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Convert DHFR + ligands to PDBQT</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Run Vina batch docking</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Redock known inhibitor (RMSD &lt;2Å)</span>
+  </label>
+</div>
+
+<h2>Week 3 – Docking Analysis & ADMET</h2>
+<div class="week">
+  <h3>DHFR Pipeline: Phases 5–7</h3>
+  
+  <label>
+    <input type="checkbox">
+    <span>Compile docking scores</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Ligand efficiency ranking</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Pose clustering</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Identify key scaffolds</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>PLIP / ProLIF interactions</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Literature validation</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Lipinski + Veber rules</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>PAINS filtering</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>QED + SA scoring</span>
+  </label>
+</div>
+
+<h2>Week 4 – ML Pipeline Start</h2>
+<div class="week">
+  <h3>Machine Learning Phase</h3>
+  
+  <label>
+    <input type="checkbox">
+    <span>Descriptor generation (RDKit)</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Dataset schema</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Baseline models (RF, XGBoost)</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Eval metrics</span>
+  </label>
+</div>
+
+<h2>Week 5 – Advanced ML & AlphaFold</h2>
+<div class="week">
+  <h3>Integration</h3>
+  
+  <label>
+    <input type="checkbox">
+    <span>LightGBM / NN models</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>SHAP explainability</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Start AlphaFold</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Compare predicted vs crystal DHFR</span>
+  </label>
+</div>
+
+<h2>Week 6 – Streamlit App</h2>
+<div class="week">
+  
+  <label>
+    <input type="checkbox">
+    <span>Build molecule upload UI</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Add ML prediction display</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>ADMET flags</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Add 3D viewer</span>
+  </label>
+</div>
+
+<h2>Week 7 – Integration & Portfolio Finish</h2>
+<div class="week">
+  
+  <label>
+    <input type="checkbox">
+    <span>Connect all modules</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Create diagrams</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Polish README</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Add example results</span>
+  </label>
+  
+  <label>
+    <input type="checkbox">
+    <span>Portfolio PDF</span>
+  </label>
+</div>
+
+</div>
+
+<script>
+function updateProgress() {
+  let boxes = document.querySelectorAll("input[type=checkbox]");
+  let total = boxes.length;
+  let checked = [...boxes].filter(b => b.checked).length;
+  let pct = Math.round(checked / total * 100);
+  document.getElementById("progress").style.width = pct + "%";
+  document.getElementById("progress").textContent = pct + "%";
+  
+  // Save progress to localStorage
+  let checkboxStates = [...boxes].map(b => b.checked);
+  localStorage.setItem('pharmaRoadmapProgress', JSON.stringify(checkboxStates));
+}
+
+// Load saved progress
+function loadProgress() {
+  let saved = localStorage.getItem('pharmaRoadmapProgress');
+  if (saved) {
+    let states = JSON.parse(saved);
+    let boxes = document.querySelectorAll("input[type=checkbox]");
+    boxes.forEach((box, i) => {
+      if (states[i]) box.checked = true;
+    });
+    updateProgress();
+  }
+}
+
+// Initialize
+document.querySelectorAll("input[type=checkbox]").forEach(cb => 
+  cb.addEventListener("change", updateProgress)
+);
+
+loadProgress();
+</script>
+
+</body>
+</html>

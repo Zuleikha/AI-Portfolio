@@ -1,0 +1,26 @@
+# Banking Knowledge Agent -- local run (Stage 12, docs/HANDOVER.md §12.C).
+#
+#   docker compose up --build -d      # then open http://localhost:8000
+#   docker compose ps                 # STATUS shows (healthy)
+#   docker compose down
+#
+# No secrets here. The provider stays the free mock unless BKA_LLM_PROVIDER is
+# set in your shell; a paid provider also needs BKA_LLM_API_KEY passed in
+# deliberately (see README, Docker).
+
+services:
+  app:
+    build:
+      context: .
+      target: runtime
+    image: banking-knowledge-agent:local
+    ports:
+      - "${BKA_HOST_PORT:-8000}:8000"
+    environment:
+      BKA_ENVIRONMENT: ${BKA_ENVIRONMENT:-local}
+      BKA_LLM_PROVIDER: ${BKA_LLM_PROVIDER:-mock}
+      BKA_LOG_LEVEL: ${BKA_LOG_LEVEL:-INFO}
+      BKA_LOG_FORMAT: ${BKA_LOG_FORMAT:-json}
+    volumes:
+      - ./logs:/app/logs
+    restart: unless-stopped

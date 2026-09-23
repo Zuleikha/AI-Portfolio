@@ -1,0 +1,269 @@
+# Labelled evaluation set for the chunking comparison — JATS / PubMed Central corpus.
+#
+# Same contract as questions.yaml:
+#
+#   source_file / section_id  — where the answer was authored
+#   answer_span               — a short, atomic fact lifted VERBATIM from that
+#                               section. A chunk is judged relevant if it
+#                               contains this span.
+#
+# How this set was built, and what that means for the numbers
+# -----------------------------------------------------------
+# Questions were hand-authored against the real articles, not generated from the
+# chunks. Three rules were applied, because breaking any of them would flatter
+# both strategies rather than separate them:
+#
+#   1. **Paraphrase, never echo.** The question uses different words from the
+#      section wherever the subject matter allows. A question that repeats the
+#      chunk's distinctive terms is answered by term overlap alone and measures
+#      nothing about boundaries.
+#   2. **Short, atomic spans.** A long span is unfair to the naive strategy for
+#      reasons unrelated to chunk boundaries — it is simply more likely to
+#      straddle a window edge by chance. A short one tests exactly the thing in
+#      question.
+#   3. **Spans verified unique.** Every span below was checked to occur in
+#      exactly one structure-aware chunk across the whole corpus. A span
+#      appearing in two sections would make "the right chunk" ambiguous and
+#      quietly inflate recall.
+#
+# ⚠️ Honest limitation: the corpus is fetched live from PMC by
+# scripts/fetch_pmc.py and PMC re-issues articles, so a span can in principle
+# drift. eval/verify_questions.py re-checks all three rules against the corpus
+# on disk and fails loudly rather than scoring a stale question set.
+
+questions:
+  # ---- PMC42766235 — delayed malaria treatment-seeking, Tigray ----
+  - id: p01
+    question: What was the mean age in months of the children in the case group?
+    source_file: PMC42766235
+    section_id: Sec36
+    answer_span: "29.95 (SD ± 13.34) months"
+
+  - id: p02
+    question: What percentage of caregivers of cases lived in a rural area?
+    source_file: PMC42766235
+    section_id: Sec36
+    answer_span: "Rural residence was reported by 75.3%"
+
+  - id: p03
+    question: How did the authors try to limit recall bias in this study?
+    source_file: PMC42766235
+    section_id: Sec41
+    answer_span: "restricting the recall period to six months"
+
+  # ---- PMC42768321 — tobramycin-resistant S. aureus outbreak in a NICU ----
+  - id: p04
+    question: How did S. aureus prevalence among infants change after the hygiene intervention?
+    source_file: PMC42768321
+    section_id: Sec18
+    answer_span: "72 % (2011) to 52 % (2013)"
+
+  - id: p05
+    question: What was the prevalence of S. aureus among NICU staff in 2010?
+    source_file: PMC42768321
+    section_id: Sec19
+    answer_span: "37 % (25 out of 68)"
+
+  - id: p06
+    question: How much donor human milk failed quality checks?
+    source_file: PMC42768321
+    section_id: Sec20
+    answer_span: "95 were discarded (24.2 %)"
+
+  - id: p07
+    question: What did air sampling during the ward reconstruction find?
+    source_file: PMC42768321
+    section_id: Sec24
+    answer_span: "four TRSA were found in the 70 air samples"
+
+  - id: p08
+    question: How many babies passed through the NICU over the study period?
+    source_file: PMC42768321
+    section_id: Sec27
+    answer_span: "2746 infants were admitted"
+
+  # ---- PMC42770298 — phase III dichloroacetate trial ----
+  - id: p09
+    question: How many children entered the randomised phase of the DCA trial?
+    source_file: PMC42770298
+    section_id: sec3
+    answer_span: "34 were randomly allocated to treatment"
+
+  - id: p10
+    question: How many of those screened did not go on to enter the trial?
+    source_file: PMC42770298
+    section_id: sec3
+    answer_span: "3 (8.1%) failed screening"
+
+  - id: p11
+    question: How were the ObsRO motor domains scored?
+    source_file: PMC42770298
+    section_id: sec4
+    answer_span: "Likert scale from 0 (mild or absent) to 4 (extremely severe)"
+
+  - id: p12
+    question: How many side effects were logged in the DCA arm?
+    source_file: PMC42770298
+    section_id: sec5
+    answer_span: "76 adverse events during treatment with DCA"
+
+  - id: p13
+    question: Was any neuropathy observed during the open-label extension?
+    source_file: PMC42770298
+    section_id: sec5
+    answer_span: "1 event of mild neuropathy"
+
+  # ---- PMC42768388 — clonidine sedation safety study ----
+  - id: p14
+    question: What was the sex distribution of the 32 clonidine study patients?
+    source_file: PMC42768388
+    section_id: Sec12
+    answer_span: "21 men and 11 women"
+
+  - id: p15
+    question: How severe was illness at baseline on the APACHE scale?
+    source_file: PMC42768388
+    section_id: Sec12
+    answer_span: "median APACHE IV score was 81"
+
+  - id: p16
+    question: How many serious adverse events were reported to the authority?
+    source_file: PMC42768388
+    section_id: Sec14
+    answer_span: "ten SAEs to the regulatory authority"
+
+  - id: p17
+    question: How many adverse-event categories in total were recorded across patients?
+    source_file: PMC42768388
+    section_id: Sec15
+    answer_span: "349 predefined AE categories"
+
+  - id: p18
+    question: What heart rate counted as rebound tachycardia after withdrawal?
+    source_file: PMC42768388
+    section_id: Sec16
+    answer_span: "Tachycardia was defined as HR > 100 bpm"
+
+  - id: p19
+    question: What was the typical ICU length of stay?
+    source_file: PMC42768388
+    section_id: Sec17
+    answer_span: "median ICU stay of 13 days"
+
+  # ---- PMC42768352 — amisulpride augmentation in adolescents ----
+  - id: p20
+    question: Which Python packages were used for the statistical analysis?
+    source_file: PMC42768352
+    section_id: Sec3
+    answer_span: "scipy.stats, scikit-learn and pandas"
+
+  - id: p21
+    question: What age range was required for inclusion?
+    source_file: PMC42768352
+    section_id: Sec5
+    answer_span: "Age between 12-18 years"
+
+  - id: p22
+    question: How were antipsychotic daily doses standardised across different drugs?
+    source_file: PMC42768352
+    section_id: Sec7
+    answer_span: "chlorpromazine (CPZ) equivalents"
+
+  - id: p23
+    question: How many items are on the PANSS?
+    source_file: PMC42768352
+    section_id: Sec8
+    answer_span: "30-item rating scale"
+
+  # ---- PMC42768329 — Unified Protocol feasibility pilot, Pakistan ----
+  - id: p24
+    question: What study design did the UA-UP pilot use?
+    source_file: PMC42768329
+    section_id: Sec4
+    answer_span: "convergent-parallel mixed-methods randomized controlled trial design"
+
+  - id: p25
+    question: What anxiety score was required for eligibility?
+    source_file: PMC42768329
+    section_id: Sec6
+    answer_span: "Beck Anxiety Inventory (BAI ≥ 16)"
+
+  - id: p26
+    question: How long did recruitment by the research assistants last?
+    source_file: PMC42768329
+    section_id: Sec7
+    answer_span: "over a six-week period"
+
+  - id: p27
+    question: What sample size did each condition enrol?
+    source_file: PMC42768329
+    section_id: Sec8
+    answer_span: "25 participants per arm"
+
+  - id: p28
+    question: How many were screened online before the SCID interview?
+    source_file: PMC42768329
+    section_id: Sec10
+    answer_span: "63 individuals completed the online screening"
+
+  - id: p29
+    question: How many UA-UP sessions were attended, and how long was each?
+    source_file: PMC42768329
+    section_id: Sec15
+    answer_span: "14 weekly, individual face-to-face sessions (50–60 min each)"
+
+  # ---- PMC42768305 — CRISPR-Cas repertoires in the gut ----
+  - id: p30
+    question: What was the sex composition of the CRCbiome cohort?
+    source_file: PMC42768305
+    section_id: s0003
+    answer_span: "582 men and 452 women"
+
+  - id: p31
+    question: How many participants were on prescription antibiotics?
+    source_file: PMC42768305
+    section_id: s0003
+    answer_span: "141 individuals (13.6%)"
+
+  - id: p32
+    question: How many cassettes were detected across all samples?
+    source_file: PMC42768305
+    section_id: s0003-s2001
+    answer_span: "74,226 CRISPR-Cas cassettes"
+
+  - id: p33
+    question: What proportion of spacers had an identified MGE target?
+    source_file: PMC42768305
+    section_id: s0003-s2002
+    answer_span: "25.1% of CRISPR non-redundant spacers"
+
+  - id: p34
+    question: How many spacers sat on contigs belonging to recovered mOTUs?
+    source_file: PMC42768305
+    section_id: s0003-s2003
+    answer_span: "146,256 non-redundant CRISPR-Cas spacers"
+
+  # ---- PMC42768990 — hyaluronic acid prostate-rectal spacer ----
+  - id: p35
+    question: At which anatomical levels was prostate-rectum spacing assessed?
+    source_file: PMC42768990
+    section_id: abstract
+    answer_span: "measured at apex, mid‐gland, and base levels"
+
+  - id: p36
+    question: How many patients were included in this retrospective spacer analysis?
+    source_file: PMC42768990
+    section_id: jmrs70125-sec-0012
+    answer_span: "91 patients from two sites"
+
+  - id: p37
+    question: What mean midline spacing was achieved at the mid-gland level?
+    source_file: PMC42768990
+    section_id: jmrs70125-sec-0013
+    answer_span: "1.04 cm"
+
+  - id: p38
+    question: Which dose-volume metric showed no significant difference between cohorts?
+    source_file: PMC42768990
+    section_id: jmrs70125-sec-0014
+    answer_span: "except for the V60Gy, the prescription dose"

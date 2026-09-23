@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "candidate-ranking-service"
+version = "1.0.0"
+description = "Candidate ranking service: scores resumes against a job description on skill coverage, experience fit and text similarity, with a published score breakdown"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+dependencies = [
+    # API
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.30.0",
+    # Multipart is required by the /candidates/upload document endpoint.
+    "python-multipart>=0.0.9",
+    "pydantic>=2.9.0",
+    "pydantic-settings>=2.4.0",
+    # Default lexical ranking backend (TfidfVectorizer + cosine_similarity).
+    "scikit-learn>=1.5.0",
+    "numpy>=2.0.0",
+    # Batch data-quality reporting in src/processing/quality_checker.py.
+    # Not on the ranking path.
+    "pandas>=2.2.0",
+    # PDF text extraction for uploaded resumes.
+    "pypdf>=5.0.0",
+]
+
+[project.optional-dependencies]
+# Opt-in semantic ranking. Pulls in torch and a model download on first use,
+# which is why it is not a base dependency — see docs/DECISIONS.md ADR-0003.
+embeddings = [
+    "sentence-transformers>=3.0.0",
+]
+dev = [
+    "pytest>=8.2.0",
+    "pytest-cov>=5.0.0",
+    # Required by fastapi.testclient.TestClient.
+    "httpx>=0.27.0",
+    "ruff>=0.6.0",
+]
+
+[tool.setuptools]
+packages = ["src"]
+
+[tool.pytest.ini_options]
+# Tests import as `from src...`; this puts the repo root on sys.path without
+# requiring an editable install to be present first.
+pythonpath = ["."]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency system requires these calls in argument defaults; they are
+# declarations, not the mutable-default trap B008 exists to catch.
+extend-immutable-calls = [
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.Header",
+]

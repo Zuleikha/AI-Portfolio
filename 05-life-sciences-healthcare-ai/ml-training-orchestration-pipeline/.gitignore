@@ -1,0 +1,49 @@
+# Secrets
+.env
+.env.local
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Training artefacts — produced by a run, not source
+models/*
+!models/.gitkeep
+mlruns/
+mlflow.db
+dagster_home/
+monitoring_results/
+logs/
+
+# Datasets — downloaded and derived, not source
+data/raw/*
+!data/raw/.gitkeep
+data/processed/*
+!data/processed/.gitkeep
+data/external/*
+!data/external/.gitkeep
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Personal study files, never committed
+*-architecture-study.html
+*-prep.html
+
+# Local Claude edit-audit log, written by the PostToolUse hook
+docs/decisions/auto-changes.log

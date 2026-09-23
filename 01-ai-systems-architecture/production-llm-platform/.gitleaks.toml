@@ -1,0 +1,73 @@
+# gitleaks configuration — Stage 8 secret scanning (ADR 0019).
+#
+# The CI "secret-scan" job runs:
+#     gitleaks dir . --config .gitleaks.toml --redact --no-banner
+# over a CLEAN checkout (tracked files only), so .venv / .env / gl/ never exist
+# there and the gate reflects the committed surface. The two allowlist sections
+# below serve two distinct, deliberately-narrow purposes:
+#
+#   * `paths`   — silence LOCAL-only scan noise. `gitleaks dir` walks the real
+#                 filesystem and does NOT honor .gitignore, so a developer running
+#                 the scan locally would otherwise hit the virtualenv, the caches,
+#                 and the downloaded scanner binary. All of these are gitignored
+#                 build/tooling artifacts, never a legitimate home for a committed
+#                 secret. NOTE: `.env` is deliberately NOT allowlisted here — it is
+#                 gitignored (real dev keys live there) but if it were ever
+#                 force-added the scanner MUST still catch it, so a local scan
+#                 correctly reports the real keys in .env while CI (no .env) is green.
+#
+#   * `regexes` — allow the OBVIOUSLY-FAKE, committed credentials that appear by
+#                 design across the repo: the test-profile fixtures in
+#                 config/environments/test.env and tests/fakes.py, the fake keys
+#                 that CI passes to prove 401/boot behaviour, and the example
+#                 values in docs (curl snippets in the stage verification log).
+#                 These match the project's FAKE-CREDENTIAL NAMING CONVENTION — a
+#                 real secret never contains markers like `not-a-real`, `wrong-key`
+#                 or `test-raw-key-` — so they are keyed on the convention, NOT on a
+#                 file path. That is deliberate: a future doc that reuses the same
+#                 example value must not re-trip the gate, yet a genuine key (which
+#                 carries none of these markers) still trips the default rules even
+#                 in these same files. gitleaks tests each regex against the secret
+#                 a rule captured (e.g. the value after `Authorization: Bearer`).
+
+title = "production-llm-platform gitleaks config"
+
+[extend]
+# Start from gitleaks' full default rule set; only add allowlists on top.
+useDefault = true
+
+[allowlist]
+description = "Local-only build/tooling artifacts and obviously-fake committed test fixtures."
+
+paths = [
+  '''\.venv/''',
+  '''\.mypy_cache/''',
+  '''\.ruff_cache/''',
+  '''\.pytest_cache/''',
+  '''gl/''',
+]
+
+regexes = [
+  # --- Fake-credential naming convention (matched against the captured secret) ---
+  # Every marker below appears ONLY in intentional non-secrets: test-profile
+  # fixtures, CI's 401/boot-behaviour keys, and doc curl examples. A real key never
+  # contains them, so matching the convention (not a file path) means future docs
+  # reusing these example values will not re-trip the gate.
+  #
+  # `not-a-real` — the primary marker. Covers, among others:
+  #   test-key-not-a-real-secret, test-pepper-not-a-real-secret (test.env, fakes.py),
+  #   sk-ant-not-a-real-key, pa-not-a-real-key, sk-ant-ci-not-a-real-key,
+  #   pa-ci-not-a-real-key, ci-not-a-real-key (CI Anthropic/Voyage/Helm placeholders).
+  '''not-a-real''',
+  # `not-real` — shorthand variant used in some grep examples (e.g. pa-not-real).
+  '''not-real''',
+  # `wrong-key` — the deliberate bad bearer token used to assert a 401
+  # (ci.yml + the verification-log curl snippet).
+  '''wrong-key''',
+  # `test-raw-key-...` — a doc example of a *valid* raw key shown returning 200
+  # (verification log: test-raw-key-123). Any suffix.
+  '''test-raw-key-''',
+  # HMAC-SHA256(test-pepper-not-a-real-secret, test-key-not-a-real-secret) — the
+  # stored hash for the test key (test.env). No naming marker, so pinned literally.
+  '''231965b3b3f3d6030b500d21b1984e72dbba04d4af29ceacae9bb3a1ee435034''',
+]

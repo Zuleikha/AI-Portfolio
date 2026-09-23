@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Banking Knowledge Agent</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <header class="bar">
+    <div>
+      <h1>Banking Knowledge Agent</h1>
+      <p class="muted">Source-backed answers over a synthetic banking platform. All data is synthetic.</p>
+    </div>
+    <div class="controls">
+      <div class="key">
+        <label for="api-key">API key</label>
+        <input id="api-key" type="password" autocomplete="off" spellcheck="false"
+               placeholder="Only if the server needs one" aria-describedby="api-key-help">
+        <span id="api-key-help" class="visually-hidden">Kept in this browser tab only and sent with each request.</span>
+      </div>
+      <button id="new-session" type="button">New conversation</button>
+    </div>
+  </header>
+
+  <main>
+    <div id="error" class="error" role="alert" hidden></div>
+
+    <section id="conversation" class="conversation" aria-live="polite">
+      <p id="empty" class="muted">Ask a question to start. Try
+        <em>What component handles card authentication?</em> or
+        <em>Status of TXN-19990101-000001?</em></p>
+    </section>
+
+    <form id="ask-form" class="ask">
+      <label for="question" class="visually-hidden">Question</label>
+      <textarea id="question" rows="2" placeholder="Ask about the platform, an error code, a transaction..." required></textarea>
+      <button id="ask" type="submit">Ask</button>
+    </form>
+    <p id="status" class="muted" aria-live="polite"></p>
+  </main>
+
+  <template id="turn-template">
+    <article class="turn">
+      <div class="question"><span class="label">You</span><p data-field="question"></p></div>
+      <div class="answer">
+        <div class="badges" data-field="badges"></div>
+        <p class="resolved muted" data-field="resolved" hidden></p>
+        <p class="text" data-field="text"></p>
+        <details data-field="sources-box">
+          <summary>Sources</summary>
+          <ul data-field="sources"></ul>
+        </details>
+        <details data-field="tools-box">
+          <summary>Tool activity</summary>
+          <div data-field="tools"></div>
+        </details>
+        <details>
+          <summary>How this answer was produced</summary>
+          <p data-field="decision"></p>
+          <ol data-field="steps"></ol>
+          <p class="muted" data-field="retrieval"></p>
+        </details>
+      </div>
+    </article>
+  </template>
+
+  <script src="app.js"></script>
+</body>
+</html>

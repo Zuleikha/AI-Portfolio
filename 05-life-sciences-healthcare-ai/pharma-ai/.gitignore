@@ -1,0 +1,60 @@
+# Secrets — must never be committed
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# Conda environments
+.conda/
+pharma-ai-env/
+pharma_env/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+
+# Trained model binaries — regenerable, and pickle is not portable across
+# scikit-learn versions (see CLAUDE.md). Keep them out of the repo.
+*.pkl
+
+# Knowledge-graph output
+graphify-out/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---------------------------------------------------------------------------
+# NOTE: this file previously excluded alphafold_target_pipeline/,
+# bioactivity-prediction/, docs/, notebooks/, output/ and every *.md except
+# README — the comments described them as "not needed in container". Those are
+# container-build exclusions, and they belong in .dockerignore, not here.
+# Left in .gitignore they would have dropped the AlphaFold docking work (the
+# project's strongest evidence) from any repository this project is pushed to.
+# Container exclusions now live in .dockerignore.
+# ---------------------------------------------------------------------------

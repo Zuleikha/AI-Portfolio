@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Architecture — ML Training Orchestration Pipeline</title>
+<style>
+  :root {
+    --bg: #ffffff; --panel: #f7f8fa; --ink: #16202e; --muted: #5b6675; --line: #d3d9e0;
+    --app: #4f5bd6; --app-fill: #e8eefc;
+    --asset: #2f9366; --asset-fill: #e6f5ee;
+    --store: #bf7d16; --store-fill: #fbefd9;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161c; --panel: #191f27; --ink: #e7ecf2; --muted: #9aa7b6; --line: #333d4a;
+      --app: #97a3ff; --app-fill: #232a4a;
+      --asset: #6cd3a4; --asset-fill: #16332a;
+      --store: #f0bf6a; --store-fill: #33280f;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 2rem 1.25rem 4rem; background: var(--bg); color: var(--ink);
+    font: 16px/1.6 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  main { max-width: 1000px; margin: 0 auto; }
+  h1 { font-size: 1.6rem; margin: 0 0 .25rem; letter-spacing: -.01em; }
+  .sub { color: var(--muted); margin: 0 0 2rem; }
+  h2 { font-size: 1.05rem; margin: 2.5rem 0 .75rem; letter-spacing: .02em; text-transform: uppercase; color: var(--muted); }
+  figure { margin: 0; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 1.25rem; overflow-x: auto; }
+  svg { display: block; min-width: 720px; width: 100%; height: auto; }
+  .legend { display: flex; flex-wrap: wrap; gap: 1.25rem; margin-top: 1rem; font-size: .85rem; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: .45rem; }
+  .swatch { width: 13px; height: 13px; border-radius: 3px; border: 1.5px solid; }
+  table { width: 100%; border-collapse: collapse; font-size: .9rem; margin-top: .5rem; }
+  th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  code { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .87em; }
+  .node-label { font: 600 12.5px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .node-sub { font: 400 10.5px ui-monospace, SFMono-Regular, Consolas, monospace; }
+  .edge-label { font: 400 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  .group-label { font: 600 11px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; letter-spacing: .08em; text-transform: uppercase; }
+</style>
+</head>
+<body>
+<main>
+  <h1>ML Training Orchestration Pipeline</h1>
+  <p class="sub">Nine assets from raw dataset to served model. The same graph runs whether triggered over HTTP or from the Dagster UI.</p>
+
+  <h2>Asset graph</h2>
+  <figure>
+    <svg viewBox="0 0 940 560" role="img" aria-label="Nine Dagster assets run in sequence from pipeline config through dataset ingestion, cleaning, tokenisation and fine-tuning, producing a model bundle, an MLflow run and evaluation results.">
+      <defs>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+          <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <!-- triggers -->
+      <g color="var(--app)">
+        <rect x="16" y="40" width="150" height="48" rx="8" fill="var(--app-fill)" stroke="var(--app)" stroke-width="1.5"/>
+        <text x="91" y="61" text-anchor="middle" class="node-label" fill="var(--ink)">POST /train</text>
+        <text x="91" y="76" text-anchor="middle" class="node-sub" fill="var(--muted)">returns run_id</text>
+
+        <rect x="16" y="106" width="150" height="48" rx="8" fill="var(--app-fill)" stroke="var(--app)" stroke-width="1.5"/>
+        <text x="91" y="127" text-anchor="middle" class="node-label" fill="var(--ink)">dagster dev</text>
+        <text x="91" y="142" text-anchor="middle" class="node-sub" fill="var(--muted)">UI :3000</text>
+
+        <path d="M 166 64 L 200 64 L 200 92 L 232 92" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+        <path d="M 166 130 L 200 130 L 200 100 L 232 100" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+      </g>
+
+      <!-- asset chain -->
+      <rect x="226" y="16" width="480" height="472" rx="10" fill="none" stroke="var(--line)" stroke-dasharray="4 4"/>
+      <text x="242" y="36" class="group-label" fill="var(--muted)">Dagster assets</text>
+
+      <g color="var(--asset)">
+        <rect x="240" y="52" width="200" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="340" y="72" text-anchor="middle" class="node-label" fill="var(--ink)">pipeline_config</text>
+        <text x="340" y="86" text-anchor="middle" class="node-sub" fill="var(--muted)">config/pipeline.yaml</text>
+        <path d="M 340 96 L 340 118" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+
+        <rect x="240" y="122" width="200" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="340" y="142" text-anchor="middle" class="node-label" fill="var(--ink)">dataset_info</text>
+        <text x="340" y="156" text-anchor="middle" class="node-sub" fill="var(--muted)">resolves HF reference</text>
+        <path d="M 340 166 L 340 188" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+
+        <rect x="240" y="192" width="200" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="340" y="212" text-anchor="middle" class="node-label" fill="var(--ink)">raw_dataset</text>
+        <text x="340" y="226" text-anchor="middle" class="node-sub" fill="var(--muted)">downloads IMDB</text>
+
+        <!-- fan out to two cleaning assets -->
+        <path d="M 300 236 L 300 258 L 268 258 L 268 276" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+        <path d="M 380 236 L 380 258 L 412 258 L 412 276" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+
+        <rect x="240" y="280" width="150" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="315" y="300" text-anchor="middle" class="node-label" fill="var(--ink)">processed_train</text>
+        <text x="315" y="314" text-anchor="middle" class="node-sub" fill="var(--muted)">clean + filter</text>
+
+        <rect x="400" y="280" width="150" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="475" y="300" text-anchor="middle" class="node-label" fill="var(--ink)">processed_test</text>
+        <text x="475" y="314" text-anchor="middle" class="node-sub" fill="var(--muted)">clean + filter</text>
+
+        <path d="M 315 324 L 315 342 L 395 342 L 395 358" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+        <path d="M 475 324 L 475 342 L 395 342" stroke="currentColor" stroke-width="1.5" fill="none"/>
+
+        <rect x="295" y="362" width="200" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="395" y="382" text-anchor="middle" class="node-label" fill="var(--ink)">training_datasets</text>
+        <text x="395" y="396" text-anchor="middle" class="node-sub" fill="var(--muted)">tokenised, Arrow</text>
+        <path d="M 395 406 L 395 428" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+
+        <rect x="295" y="432" width="200" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="395" y="452" text-anchor="middle" class="node-label" fill="var(--ink)">trained_model</text>
+        <text x="395" y="466" text-anchor="middle" class="node-sub" fill="var(--muted)">fine-tune + evaluate</text>
+      </g>
+
+      <!-- model config side branch -->
+      <g color="var(--asset)">
+        <rect x="520" y="122" width="170" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="605" y="142" text-anchor="middle" class="node-label" fill="var(--ink)">model_config</text>
+        <text x="605" y="156" text-anchor="middle" class="node-sub" fill="var(--muted)">arch + labels</text>
+        <path d="M 605 166 L 605 188" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+
+        <rect x="520" y="192" width="170" height="44" rx="8" fill="var(--asset-fill)" stroke="var(--asset)" stroke-width="1.5"/>
+        <text x="605" y="212" text-anchor="middle" class="node-label" fill="var(--ink)">pretrained_setup</text>
+        <text x="605" y="226" text-anchor="middle" class="node-sub" fill="var(--muted)">weights + tokenizer</text>
+        <path d="M 605 236 L 605 384 L 495 384" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+        <path d="M 440 74 L 520 74 L 520 130 L 512 130" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+      </g>
+
+      <!-- outputs -->
+      <g color="var(--store)">
+        <rect x="726" y="366" width="196" height="44" rx="8" fill="var(--store-fill)" stroke="var(--store)" stroke-width="1.5"/>
+        <text x="824" y="386" text-anchor="middle" class="node-label" fill="var(--ink)">models/trained_model/</text>
+        <text x="824" y="400" text-anchor="middle" class="node-sub" fill="var(--muted)">serving bundle</text>
+
+        <rect x="726" y="424" width="196" height="44" rx="8" fill="var(--store-fill)" stroke="var(--store)" stroke-width="1.5"/>
+        <text x="824" y="444" text-anchor="middle" class="node-label" fill="var(--ink)">MLflow run</text>
+        <text x="824" y="458" text-anchor="middle" class="node-sub" fill="var(--muted)">params · metrics</text>
+
+        <path d="M 495 448 L 700 448 L 700 388 L 718 388" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+        <path d="M 700 448 L 718 448" stroke="currentColor" stroke-width="1.5" fill="none" marker-end="url(#arr)"/>
+      </g>
+
+      <!-- serving -->
+      <g color="var(--app)">
+        <rect x="726" y="52" width="196" height="60" rx="8" fill="var(--app-fill)" stroke="var(--app)" stroke-width="1.5"/>
+        <text x="824" y="76" text-anchor="middle" class="node-label" fill="var(--ink)">POST /predict</text>
+        <text x="824" y="92" text-anchor="middle" class="node-sub" fill="var(--muted)">ModelService, cached</text>
+        <text x="824" y="105" text-anchor="middle" class="node-sub" fill="var(--muted)">503 until trained</text>
+        <path d="M 824 366 L 824 120" stroke="currentColor" stroke-width="1.5" stroke-dasharray="5 4" fill="none" marker-end="url(#arr)"/>
+        <text x="836" y="250" class="edge-label" fill="var(--muted)">loaded at startup</text>
+      </g>
+    </svg>
+    <div class="legend">
+      <span><i class="swatch" style="background:var(--app-fill);border-color:var(--app)"></i> HTTP surface</span>
+      <span><i class="swatch" style="background:var(--asset-fill);border-color:var(--asset)"></i> Dagster asset</span>
+      <span><i class="swatch" style="background:var(--store-fill);border-color:var(--store)"></i> Persisted output</span>
+    </div>
+  </figure>
+
+  <h2>Module responsibilities</h2>
+  <table>
+    <thead><tr><th>Module</th><th>File</th><th>Responsibility</th></tr></thead>
+    <tbody>
+      <tr><td>Orchestration</td><td><code>src/dagster_definitions.py</code></td><td>All nine assets and the <code>Definitions</code> object</td></tr>
+      <tr><td>Serving</td><td><code>src/api.py</code></td><td>Routes, <code>ModelService</code>, Prometheus instrumentation</td></tr>
+      <tr><td>Config</td><td><code>src/config.py</code></td><td>Environment settings plus YAML pipeline config</td></tr>
+      <tr><td>Data</td><td><code>src/data/</code></td><td>Ingestion, cleaning, HuggingFace helpers</td></tr>
+      <tr><td>Training</td><td><code>src/training/trainer.py</code></td><td>MLflow-tracked <code>Trainer</code> wrapper, standard and grid search</td></tr>
+      <tr><td>Evaluation</td><td><code>src/evaluation/evaluator.py</code></td><td>Accuracy, weighted F1, precision, recall, plots</td></tr>
+      <tr><td>Registry</td><td><code>src/models/model_manager.py</code></td><td>Model abstraction and MLflow registration</td></tr>
+      <tr><td>Monitoring</td><td><code>src/monitoring/drift_detector.py</code></td><td>KS-test on features, chi-square on predictions</td></tr>
+    </tbody>
+  </table>
+</main>
+</body>
+</html>

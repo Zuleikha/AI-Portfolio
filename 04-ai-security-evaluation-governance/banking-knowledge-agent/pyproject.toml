@@ -1,0 +1,59 @@
+[project]
+name = "banking-knowledge-agent"
+version = "0.1.0"
+description = "Source-backed knowledge and support agent for a banking technology platform."
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# --basetemp keeps tmp_path/tmp_path_factory inside the repository instead of
+# %LOCALAPPDATA%\Temp\pytest-of-<user>.
+#
+# Why: pytest hardens its default temp root by stripping inherited ACLs, leaving
+# only SYSTEM, Administrators and OWNER RIGHTS. If that directory is ever created
+# by an ELEVATED process, its owner becomes BUILTIN\Administrators and a normal
+# non-elevated run of the same user is denied with
+# PermissionError: [WinError 5] -- every tmp_path test errors, and the state
+# persists across runs because the directory is reused. It is also invisible to
+# whoever created it, since an elevated shell still has access.
+#
+# .pytest_tmp/ inherits Modify for Authenticated Users from the repository
+# directory, so it works for elevated and non-elevated runs alike, and it is
+# git-ignored. Note pytest DELETES this directory at the start of every session,
+# so it must stay a disposable path, and pytest should be run from the repo root
+# (as testpaths already assumes).
+addopts = "-q --strict-markers --basetemp=.pytest_tmp"
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = ["ignore::DeprecationWarning:starlette.testclient"]
+markers = [
+    # Needs the real embedding model in the local Hugging Face cache and takes
+    # a few seconds. Runs by default -- retrieval quality is the whole point of
+    # Stage 3, so it should not be opt-in. Deselect with -m "not integration".
+    "integration: exercises the real sentence-transformers model",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "ANN", "D"]
+ignore = ["ANN401", "D203", "D213"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["ANN", "D"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["app"]
+strict = true
+warn_unused_ignores = true
+disallow_untyped_defs = true
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+ignore_errors = true

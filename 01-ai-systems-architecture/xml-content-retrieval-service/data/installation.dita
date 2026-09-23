@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE topic PUBLIC "-//OASIS//DTD DITA Topic//EN" "topic.dtd">
+<topic id="installation">
+  <title>Installing Bentley OpenRoads Designer</title>
+  <shortdesc>Step-by-step instructions for installing OpenRoads Designer on supported platforms.</shortdesc>
+  <body>
+    <section id="system-requirements">
+      <title>System Requirements</title>
+      <p>Before installing, ensure your system meets the following minimum requirements:</p>
+      <ul>
+        <li>Operating System: Windows 10 64-bit or Windows 11</li>
+        <li>RAM: 16 GB minimum, 32 GB recommended</li>
+        <li>Disk Space: 20 GB free space</li>
+        <li>Graphics: DirectX 11 compatible GPU</li>
+      </ul>
+    </section>
+    <section id="download">
+      <title>Downloading the Installer</title>
+      <p>Download the installer from the Bentley CONNECTION Center. You must have an active Bentley account to access downloads.</p>
+      <p>Navigate to My Products and select OpenRoads Designer from the product list. Choose the correct version for your license type.</p>
+    </section>
+    <section id="install-steps">
+      <title>Installation Steps</title>
+      <p>Run the installer as administrator. Follow the on-screen prompts to select installation directory and license configuration.</p>
+      <p>When prompted, enter your Bentley CONNECTION Center credentials to activate the product license.</p>
+      <p>Restart your machine after installation completes to ensure all components are loaded correctly.</p>
+    </section>
+    <section id="troubleshooting">
+      <title>Troubleshooting Installation</title>
+      <p>If the installer fails, check that your Windows user account has administrator privileges.</p>
+      <p>Antivirus software may block the installer. Temporarily disable real-time protection during installation and re-enable after.</p>
+      <p>For license activation failures, verify your network connection and that ports 443 and 80 are not blocked by a firewall.</p>
+    </section>
+  </body>
+</topic>

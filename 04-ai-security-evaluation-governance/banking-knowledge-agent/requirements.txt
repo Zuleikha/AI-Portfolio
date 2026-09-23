@@ -1,0 +1,50 @@
+# Runtime dependencies -- Banking Knowledge Agent
+# Pinned to keep local, CI and Docker builds reproducible.
+
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+structlog==24.4.0
+
+# Knowledge document front matter (Stage 2). safe_load only -- see loader.py.
+PyYAML==6.0.2
+
+# --- RAG pipeline (Stage 3) ------------------------------------------------
+# Local embedding model: no API key, no per-query cost, no network after the
+# first model download. torch is pinned explicitly even though it arrives via
+# sentence-transformers -- it is the single largest artefact in the image and
+# the CPU/GPU build choice belongs in this file, not in a transitive resolve.
+# On Windows and macOS the PyPI wheel is CPU-only; on Linux add
+#   --extra-index-url https://download.pytorch.org/whl/cpu
+# to keep the image from pulling ~2 GB of unused CUDA libraries.
+sentence-transformers==5.7.0
+torch==2.14.0
+numpy==2.5.3
+
+# --- LLM provider adapters (Stage 5) ---------------------------------------
+# TWO vendor SDKs, deliberately. One adapter proves an adapter can be written;
+# two prove the abstraction -- that swapping providers is a configuration
+# change and nothing else. Neither is "the" chosen vendor.
+#
+# Installing these does NOT enable spending. BKA_LLM_PROVIDER still defaults to
+# "mock", and neither adapter can be constructed without BKA_LLM_API_KEY, which
+# is unset. A paid call needs a deliberate change to both. The test suite mocks
+# the SDK clients and makes no network call.
+anthropic==1.4.0
+openai==3.11.0
+
+# --- MCP tool layer (Stage 6) ----------------------------------------------
+# The official Model Context Protocol SDK. Used by app/mcp/server.py to expose
+# the six synthetic support tools over a real stdio JSON-RPC transport. The
+# in-process registry the agent uses needs no SDK at all -- this dependency
+# buys the protocol, not the tools.
+#
+# PINNED DOWN, NOT UP, AND DELIBERATELY. mcp 2.x requires starlette>=1.0, which
+# breaks fastapi==0.115.6 at import time:
+#   TypeError: Router.__init__() got an unexpected keyword argument 'on_startup'
+# That failure takes out the entire test suite at collection, not just the
+# health endpoint. 1.12.4 is the newest release compatible with the pinned
+# starlette and pydantic. Upgrading FastAPI to chase a newer SDK is a Stage 1
+# infrastructure change and Stage 6 needs nothing the newer SDK offers.
+mcp==1.12.4

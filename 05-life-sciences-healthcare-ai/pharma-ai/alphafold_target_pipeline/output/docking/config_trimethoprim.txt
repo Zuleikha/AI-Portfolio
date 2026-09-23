@@ -1,0 +1,14 @@
+receptor = alphafold_target_pipeline/data/protein/dhfr.pdbqt
+ligand   = alphafold_target_pipeline/data/ligands/trimethoprim.pdbqt
+
+center_x = 5.4935
+center_y = 1.143
+center_z = 0.374
+
+size_x = 16.741
+size_y = 16.666
+size_z = 19.172
+
+exhaustiveness = 32
+num_modes = 20
+energy_range = 4

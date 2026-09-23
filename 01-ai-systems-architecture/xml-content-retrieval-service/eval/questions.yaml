@@ -1,0 +1,152 @@
+# Labelled evaluation set for the chunking comparison.
+#
+# Each question names:
+#   source_file / section_id  — where the answer was authored
+#   answer_span               — a short, atomic fact lifted VERBATIM from that
+#                               section. A chunk is judged relevant if it
+#                               contains this span.
+#
+# Spans are kept short and atomic on purpose. A long span would be unfair to the
+# naive strategy for reasons unrelated to chunk boundaries; a short one tests
+# exactly the thing in question — whether the boundary cut the fact in half.
+#
+# Questions are paraphrases, not keyword echoes, so retrieval has real work to do.
+
+questions:
+  # ---- installation.dita ----
+  - id: q01
+    question: How much memory do I need to run the software comfortably?
+    source_file: installation
+    section_id: system-requirements
+    answer_span: "32 GB recommended"
+
+  - id: q02
+    question: What graphics hardware is required?
+    source_file: installation
+    section_id: system-requirements
+    answer_span: "DirectX 11 compatible GPU"
+
+  - id: q03
+    question: What storage headroom does the installer need?
+    source_file: installation
+    section_id: system-requirements
+    answer_span: "20 GB free space"
+
+  - id: q04
+    question: Where do I obtain the installer package?
+    source_file: installation
+    section_id: download
+    # Was "Bentley CONNECTION Center", which also appears in install-steps.
+    # A span in two sections makes "the right chunk" ambiguous and quietly
+    # inflates recall; eval/verify_questions.py now rejects that.
+    answer_span: "Navigate to My Products"
+
+  - id: q05
+    question: Do I need an account before I can download anything?
+    source_file: installation
+    section_id: download
+    answer_span: "active Bentley account"
+
+  - id: q06
+    question: Do I have to reboot once setup finishes?
+    source_file: installation
+    section_id: install-steps
+    answer_span: "Restart your machine after installation"
+
+  - id: q07
+    question: What privileges are needed to run setup?
+    source_file: installation
+    section_id: install-steps
+    answer_span: "Run the installer as administrator"
+
+  - id: q08
+    question: What must the firewall allow through for licensing to work?
+    source_file: installation
+    section_id: troubleshooting
+    answer_span: "ports 443 and 80"
+
+  - id: q09
+    question: Could my security software stop the install from completing?
+    source_file: installation
+    section_id: troubleshooting
+    answer_span: "Antivirus software may block the installer"
+
+  # ---- troubleshooting.dita ----
+  - id: q10
+    question: The application feels sluggish — what should I change first?
+    source_file: troubleshooting
+    section_id: performance
+    answer_span: "Reduce display density"
+
+  - id: q11
+    question: What commonly causes rendering slowdowns and crashes?
+    source_file: troubleshooting
+    section_id: performance
+    answer_span: "Outdated drivers"
+
+  - id: q12
+    question: Why might checking out a licence fail?
+    source_file: troubleshooting
+    section_id: license-errors
+    answer_span: "exhausted license seats"
+
+  - id: q13
+    question: I work disconnected from the network — what should I verify?
+    source_file: troubleshooting
+    section_id: license-errors
+    answer_span: "offline lease has not expired"
+
+  - id: q14
+    question: A drawing will not open and may be damaged. What can repair it?
+    source_file: troubleshooting
+    section_id: file-errors
+    answer_span: "File Recovery tool"
+
+  - id: q15
+    question: Saving to a shared drive keeps failing. What is the workaround?
+    source_file: troubleshooting
+    section_id: file-errors
+    answer_span: "Save locally first"
+
+  - id: q16
+    question: Where are diagnostic logs written after an unexpected shutdown?
+    source_file: troubleshooting
+    section_id: crashes
+    answer_span: "AppData directory under Bentley"
+
+  # ---- configuration.dita ----
+  - id: q17
+    question: Where on disk are workspaces kept?
+    source_file: configuration
+    section_id: workspace
+    answer_span: "WorkSpace directory"
+
+  - id: q18
+    question: How do I change the road geometry and drainage rules?
+    source_file: configuration
+    section_id: civil-standards
+    answer_span: "Settings, then Civil Standards"
+
+  - id: q19
+    question: What goes wrong if two files disagree about measurement units?
+    source_file: configuration
+    section_id: units
+    answer_span: "geometry errors"
+
+  - id: q20
+    question: Which dialog controls working units?
+    source_file: configuration
+    section_id: units
+    answer_span: "Design File Settings dialog"
+
+  - id: q21
+    question: Can I copy my personal setup to a colleague?
+    source_file: configuration
+    section_id: user-preferences
+    answer_span: "exported and imported"
+
+  - id: q22
+    question: Should I save my settings before upgrading?
+    source_file: configuration
+    section_id: user-preferences
+    answer_span: "back up settings before an upgrade"

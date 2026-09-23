@@ -1,0 +1,69 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+*.so
+
+# --- Virtual environments / uv ---
+.venv/
+venv/
+# uv.lock IS committed on purpose (reproducible installs) — do not ignore it.
+
+# --- Test / coverage / type caches ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# --- Environment / secrets ---
+.env
+.env.*
+!.env.example
+!config/environments/*.env
+
+# --- IDE / editor ---
+.idea/
+.vscode/
+.claude/
+*.swp
+*~
+
+# --- Personal workflow files, not project deliverables ---
+docs/cc-stage-prompt-template.txt
+docs/architecture-history/
+docs/interview-prep.md
+# Personal study files, never committed
+*-architecture-study.html
+*-prep.html
+# Local gitleaks binary download (Stage 8 secret scanning) — this-machine tool,
+# not a deliverable; CI installs gitleaks itself. Never commit the 30MB binary.
+gl/
+# gitleaks scan output — a local `gitleaks dir . --report-path <name>` writes findings
+# (redacted secrets) to a JSON file; it's a scan artefact, never a deliverable, and must
+# never be committed. Glob covers every report name we use (gitleaks-report.json,
+# gitleaks-ci-report.json, etc.).
+gitleaks-report.json
+*gitleaks*report*.json
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+
+# --- Docker / local data volumes ---
+*.pid
+# Ignore local data dirs (e.g. Docker volume mounts) but NOT the RAG corpus or the
+# eval fixtures: they are source, not volumes — read by tests, and `data/eval/` is
+# the CI regression gate's dataset + baseline (Stage 6, ADR 0017), so it must be
+# tracked or CI has nothing to score. `data/*` (not `data/`) so git can descend and
+# the negations below take effect; a bare `data/` would block re-inclusion entirely.
+data/*
+!data/README.md
+!data/corpus/
+!data/eval/
+docs/decisions/auto-changes.log

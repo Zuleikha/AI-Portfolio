@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE topic PUBLIC "-//OASIS//DTD DITA Topic//EN" "topic.dtd">
+<topic id="configuration">
+  <title>Configuring Project Settings</title>
+  <shortdesc>How to configure workspace and project settings in OpenRoads Designer.</shortdesc>
+  <body>
+    <section id="workspace">
+      <title>Setting Up a Workspace</title>
+      <p>A workspace defines the standards, seed files, and configuration that apply to your project. Select or create a workspace from the backstage view when opening the application.</p>
+      <p>Workspaces are stored in the WorkSpace directory. Your administrator may provide a shared workspace for team projects.</p>
+    </section>
+    <section id="civil-standards">
+      <title>Civil Standards Configuration</title>
+      <p>Civil standards control design rules such as road geometry, drainage parameters, and annotation styles. These are defined in the civil standards file associated with your workspace.</p>
+      <p>To update civil standards, navigate to Settings, then Civil Standards, and select the appropriate standards file for your region or project type.</p>
+    </section>
+    <section id="units">
+      <title>Units and Coordinate Systems</title>
+      <p>Set working units and coordinate reference systems before beginning design work. Mismatched units between files can cause geometry errors that are difficult to resolve later.</p>
+      <p>Access unit settings via the Design File Settings dialog. Metric and imperial unit configurations are both supported.</p>
+    </section>
+    <section id="user-preferences">
+      <title>User Preferences</title>
+      <p>User preferences are stored per user account and persist across sessions. Configure display preferences, tool settings, and keyboard shortcuts from the Preferences dialog.</p>
+      <p>Preferences can be exported and imported to share configurations across team members or to back up settings before an upgrade.</p>
+    </section>
+  </body>
+</topic>

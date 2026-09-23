@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "realtime-transaction-scoring-api"
+version = "1.0.0"
+description = "Real-time transaction fraud scoring: XGBoost behind a FastAPI endpoint, with a cost-justified decision threshold published on every response"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+
+dependencies = [
+    # Model
+    "xgboost>=2.0.0,<3",
+    "scikit-learn>=1.4.0,<2",
+    "pandas>=2.1.0,<3",
+    "numpy>=1.26.0,<3",
+    "joblib>=1.4.0,<2",
+    # API
+    "fastapi>=0.111.0,<1",
+    "uvicorn[standard]>=0.29.0,<1",
+    "pydantic>=2.7.0,<3",
+    # Config
+    "pyyaml>=6.0.1,<7",
+]
+
+[project.optional-dependencies]
+# Reproducing training and the notebooks. Not needed to serve.
+train = [
+    "imbalanced-learn>=0.12.0,<1",
+    "optuna>=3.6.0,<5",
+    "shap>=0.45.0,<1",
+    "matplotlib>=3.8.0,<4",
+    "seaborn>=0.13.0,<1",
+    "python-dotenv>=1.0.0,<2",
+]
+# Optional experiment tracking. Training works fully offline without it.
+tracking = [
+    "dagshub>=0.3.0,<1",
+    # src/train.py does `import mlflow` inside `if tracking:` — the import is
+    # lazy, so the gap only surfaced when tracking was switched on.
+    "mlflow>=2.8.0,<4",
+]
+dev = [
+    "pytest>=8.2.0,<9",
+    # Required by fastapi.testclient.TestClient. Was a RUNTIME dependency in the
+    # source project because an /explain endpoint called an external LLM gateway
+    # over HTTP; that endpoint was removed on extraction, so this is test-only now.
+    "httpx>=0.27.0,<1",
+    "ruff>=0.6.0",
+]
+
+[tool.setuptools]
+packages = ["api", "app", "src"]
+
+[tool.pytest.ini_options]
+# The API imports as `api.main`; the training and scoring helpers import bare
+# (`import features`) because they are scripts, not a package. Both paths are
+# put on sys.path here rather than requiring an editable install first.
+pythonpath = [".", "src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+# Notebooks are exploratory work kept as a record of how the model was arrived
+# at. They are not linted to the same standard as the service.
+extend-exclude = ["notebooks"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM"]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI's dependency system requires these calls in argument defaults; they are
+# declarations, not the mutable-default trap B008 exists to catch.
+extend-immutable-calls = [
+    "fastapi.File",
+    "fastapi.Form",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Depends",
+    "fastapi.Header",
+]

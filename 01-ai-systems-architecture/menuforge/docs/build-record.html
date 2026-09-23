@@ -1,0 +1,873 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Menuforge Build Record</title>
+
+<style>
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+  }
+
+  img {
+    max-width: 100%;
+  }
+</style>
+
+<style>
+  :root {
+    --ground: #f5f6f6;
+    --surface: #ffffff;
+    --surface-sunk: #eceeed;
+    --ink: #171c1c;
+    --ink-muted: #5c6866;
+    --ink-faint: #8a9491;
+    --rule: #dce0de;
+    --rule-strong: #b9c1be;
+    --accent: #8a2e3b;
+    --accent-soft: #f3e3e5;
+    --pass: #1f6b45;
+    --pass-soft: #e0efe6;
+    --warn: #85560f;
+    --warn-soft: #f6ecd9;
+
+    --sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto,
+      "Helvetica Neue", Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", "Cascadia Code", "SF Mono", Menlo,
+      Consolas, "Liberation Mono", monospace;
+
+    --measure: 72ch;
+    --page: 62rem;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #141817;
+      --surface: #1b2120;
+      --surface-sunk: #101413;
+      --ink: #e9ecea;
+      --ink-muted: #97a3a0;
+      --ink-faint: #6d7a77;
+      --rule: #2c3432;
+      --rule-strong: #43504d;
+      --accent: #e28a97;
+      --accent-soft: #382226;
+      --pass: #62c08c;
+      --pass-soft: #172a20;
+      --warn: #d8a441;
+      --warn-soft: #2b2416;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --ground: #141817;
+    --surface: #1b2120;
+    --surface-sunk: #101413;
+    --ink: #e9ecea;
+    --ink-muted: #97a3a0;
+    --ink-faint: #6d7a77;
+    --rule: #2c3432;
+    --rule-strong: #43504d;
+    --accent: #e28a97;
+    --accent-soft: #382226;
+    --pass: #62c08c;
+    --pass-soft: #172a20;
+    --warn: #d8a441;
+    --warn-soft: #2b2416;
+  }
+
+  body {
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .page {
+    max-width: var(--page);
+    margin: 0 auto;
+    padding: clamp(1.75rem, 4vw, 4rem) clamp(1.1rem, 4vw, 2.5rem) 6rem;
+    display: flex;
+    flex-direction: column;
+    gap: 3.25rem;
+  }
+
+  /* ---------- masthead ---------- */
+
+  .masthead {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 1.1rem;
+  }
+
+  .eyebrow {
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin: 0;
+  }
+
+  h1 {
+    font-size: clamp(2.3rem, 6.5vw, 3.6rem);
+    line-height: 1.02;
+    letter-spacing: -0.035em;
+    font-weight: 800;
+    margin: 0;
+    text-wrap: balance;
+  }
+
+  .standfirst {
+    max-width: var(--measure);
+    font-size: 1.06rem;
+    color: var(--ink-muted);
+    margin: 0;
+    text-wrap: pretty;
+  }
+
+  /* ---------- stat strip ---------- */
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr));
+    gap: 1px;
+    background: var(--rule);
+    border: 1px solid var(--rule);
+  }
+
+  .stat {
+    background: var(--surface);
+    padding: 1.05rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.28rem;
+  }
+
+  .stat-n {
+    font-size: 2rem;
+    font-weight: 750;
+    letter-spacing: -0.03em;
+    font-variant-numeric: tabular-nums;
+    line-height: 1;
+  }
+
+  .stat-l {
+    font-family: var(--mono);
+    font-size: 0.68rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- sections ---------- */
+
+  section {
+    display: flex;
+    flex-direction: column;
+    gap: 1.1rem;
+  }
+
+  h2 {
+    font-family: var(--mono);
+    font-size: 0.76rem;
+    letter-spacing: 0.19em;
+    text-transform: uppercase;
+    color: var(--ink);
+    margin: 0;
+    padding-bottom: 0.55rem;
+    border-bottom: 1px solid var(--rule-strong);
+    font-weight: 600;
+  }
+
+  h3 {
+    font-size: 1.02rem;
+    font-weight: 680;
+    letter-spacing: -0.01em;
+    margin: 0;
+  }
+
+  p {
+    margin: 0;
+    max-width: var(--measure);
+    text-wrap: pretty;
+  }
+
+  .note {
+    color: var(--ink-muted);
+    font-size: 0.94rem;
+  }
+
+  /* ---------- menu-style leader rows ---------- */
+
+  .leaders {
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+    max-width: 34rem;
+  }
+
+  .leader {
+    display: flex;
+    align-items: baseline;
+    gap: 0.55rem;
+    font-size: 0.95rem;
+  }
+
+  .leader-k {
+    font-weight: 560;
+  }
+
+  .leader-fill {
+    flex: 1;
+    border-bottom: 1px dotted var(--rule-strong);
+    min-width: 1.5rem;
+    transform: translateY(-0.22rem);
+  }
+
+  .leader-v {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--ink-muted);
+    font-size: 0.88rem;
+  }
+
+  /* ---------- tables ---------- */
+
+  .scroll {
+    overflow-x: auto;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.91rem;
+    min-width: 34rem;
+  }
+
+  th {
+    text-align: left;
+    font-family: var(--mono);
+    font-size: 0.67rem;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    font-weight: 600;
+    padding: 0.72rem 0.9rem;
+    border-bottom: 1px solid var(--rule-strong);
+    white-space: nowrap;
+    background: var(--surface-sunk);
+  }
+
+  td {
+    padding: 0.72rem 0.9rem;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  td.num {
+    font-family: var(--mono);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  td.tight {
+    white-space: nowrap;
+  }
+
+  code,
+  .sha {
+    font-family: var(--mono);
+    font-size: 0.85em;
+    background: var(--surface-sunk);
+    padding: 0.1em 0.4em;
+    border-radius: 2px;
+  }
+
+  .sha {
+    color: var(--accent);
+  }
+
+  /* ---------- pills ---------- */
+
+  .pill {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 0.66rem;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    padding: 0.2em 0.55em;
+    border-radius: 2px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .pill-pass {
+    background: var(--pass-soft);
+    color: var(--pass);
+  }
+
+  .pill-warn {
+    background: var(--warn-soft);
+    color: var(--warn);
+  }
+
+  .pill-accent {
+    background: var(--accent-soft);
+    color: var(--accent);
+  }
+
+  /* ---------- stage ledger ---------- */
+
+  .ledger {
+    display: flex;
+    flex-direction: column;
+    border: 1px solid var(--rule);
+    background: var(--surface);
+  }
+
+  .stage {
+    display: grid;
+    grid-template-columns: 3.1rem 1fr auto;
+    gap: 0.9rem;
+    align-items: baseline;
+    padding: 0.72rem 0.95rem;
+    border-bottom: 1px solid var(--rule);
+  }
+
+  .ledger .stage:last-child {
+    border-bottom: none;
+  }
+
+  .stage-n {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.08em;
+    color: var(--accent);
+    font-weight: 600;
+  }
+
+  .stage-t {
+    font-size: 0.93rem;
+  }
+
+  .stage-c {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--ink-faint);
+  }
+
+  /* ---------- callout ---------- */
+
+  .callout {
+    border-left: 3px solid var(--accent);
+    background: var(--surface);
+    padding: 1rem 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .callout p {
+    max-width: 64ch;
+  }
+
+  /* ---------- command block ---------- */
+
+  pre {
+    margin: 0;
+    background: var(--surface-sunk);
+    border: 1px solid var(--rule);
+    padding: 0.95rem 1.1rem;
+    overflow-x: auto;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    line-height: 1.75;
+    color: var(--ink);
+  }
+
+  pre .c {
+    color: var(--ink-faint);
+  }
+
+  ul {
+    margin: 0;
+    padding-left: 1.15rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    max-width: var(--measure);
+  }
+
+  li::marker {
+    color: var(--accent);
+  }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 1.1rem;
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+    color: var(--ink-faint);
+  }
+
+  a {
+    color: var(--accent);
+  }
+
+  a:focus-visible,
+  .scroll:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+</style>
+</head>
+
+<body>
+<div class="page">
+  <header class="masthead">
+    <p class="eyebrow">Build record · 13 Aug 2026</p>
+    <h1>menuforge</h1>
+    <p class="standfirst">
+      One endpoint that extracts structured menu data from an image using a single
+      Claude call with forced tool use. Built in nine staged commits from a
+      reference scaffold and a working prototype. <strong>Stages 0–8 complete.</strong>
+    </p>
+  </header>
+
+  <div class="stats">
+    <div class="stat">
+      <span class="stat-n">9/9</span>
+      <span class="stat-l">Stages done</span>
+    </div>
+    <div class="stat">
+      <span class="stat-n" data-stat="files">38</span>
+      <span class="stat-l">Files tracked</span>
+    </div>
+    <div class="stat">
+      <span class="stat-n" data-stat="tests_total">84</span>
+      <span class="stat-l">Tests</span>
+    </div>
+    <div class="stat">
+      <span class="stat-n" data-stat="src_lines">801</span>
+      <span class="stat-l">Lines in src</span>
+    </div>
+    <div class="stat">
+      <span class="stat-n">0</span>
+      <span class="stat-l">Open gaps</span>
+    </div>
+  </div>
+
+  <section>
+    <h2>Verification</h2>
+    <p class="note">
+      Every check below was run on the commit this record ships in, not inferred.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Check</th>
+            <th>Command</th>
+            <th>Result</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Default suite</td>
+            <td><code>pytest</code></td>
+            <td class="num"><span data-stat="tests_default">77</span> passed,
+              <span data-stat="tests_live">7</span> deselected</td>
+            <td><span class="pill pill-pass">Pass</span></td>
+          </tr>
+          <tr>
+            <td>Live API suite</td>
+            <td><code>pytest -m live</code></td>
+            <td class="num"><span data-stat="tests_live">7</span> passed · 1 real request</td>
+            <td><span class="pill pill-pass">Pass</span></td>
+          </tr>
+          <tr>
+            <td>Lint</td>
+            <td><code>ruff check src tests scripts</code></td>
+            <td>All checks passed</td>
+            <td><span class="pill pill-pass">Pass</span></td>
+          </tr>
+          <tr>
+            <td>Format</td>
+            <td><code>ruff format --check</code></td>
+            <td class="num">21 files formatted</td>
+            <td><span class="pill pill-pass">Pass</span></td>
+          </tr>
+          <tr>
+            <td>Types (strict)</td>
+            <td><code>mypy src tests scripts</code></td>
+            <td class="num">21 files, no issues</td>
+            <td><span class="pill pill-pass">Pass</span></td>
+          </tr>
+          <tr>
+            <td>Real boot</td>
+            <td><code>uvicorn</code> lifespan</td>
+            <td>Config loaded from YAML, <code>/items</code> 200</td>
+            <td><span class="pill pill-pass">Pass</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Stage ledger</h2>
+    <div class="ledger">
+      <div class="stage">
+        <span class="stage-n">00</span><span class="stage-t">Scaffold and git init</span><span class="stage-c">64288c5</span>
+      </div>
+      <div class="stage">
+        <span class="stage-n">01</span><span class="stage-t">PRD</span><span class="stage-c">fe8ab67</span>
+      </div>
+      <div class="stage">
+        <span class="stage-n">02</span><span class="stage-t">Decisions — ADR ported from the prototype</span><span class="stage-c">f934cc1</span>
+      </div>
+      <div class="stage">
+        <span class="stage-n">03</span><span class="stage-t">Architecture as a module map</span><span class="stage-c">28e83d7</span>
+      </div>
+      <div class="stage">
+        <span class="stage-n">04</span><span class="stage-t">Schemas, database, LLM client</span><span class="stage-c">450dd8f</span>
+      </div>
+      <div class="stage">
+        <span class="stage-n">05</span><span class="stage-t">API surface and structured logging</span><span class="stage-c">e378880</span>
+      </div>
+      <div class="stage">
+        <span class="stage-n">06</span><span class="stage-t">Tests and CI</span><span class="stage-c">038529e</span>
+      </div>
+      <div class="stage">
+        <span class="stage-n">07</span><span class="stage-t">Docs and security pass</span><span class="stage-c">10fa1bb</span>
+      </div>
+      <div class="stage">
+        <span class="stage-n">08</span><span class="stage-t">Final summary — this record</span><span class="stage-c">—</span>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2>Closed after the first summary</h2>
+    <p class="note">
+      The Stage 8 summary named three honest gaps. All three are now shut, in four
+      follow-up commits.
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Commit</th>
+            <th>What it closed</th>
+            <th>Evidence</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="tight"><span class="sha">03a9f89</span></td>
+            <td><strong>.env never loaded.</strong> Model id also read at import time, so it depended on import order.</td>
+            <td>Loaded in the lifespan hook; model read per call</td>
+          </tr>
+          <tr>
+            <td class="tight"><span class="sha">8da54fa</span></td>
+            <td><strong>Tests invisible to mypy.</strong> Strict mode reported 49 errors, so CI only checked <code>src</code>.</td>
+            <td>0 errors; CI now runs <code>mypy src tests</code></td>
+          </tr>
+          <tr>
+            <td class="tight"><span class="sha">5d55ba6</span></td>
+            <td><strong>config/*.yaml decorative.</strong> Two files and a <code>pyyaml</code> dependency that nothing read.</td>
+            <td>Typed loader; 21 tests; two load the shipped files</td>
+          </tr>
+          <tr>
+            <td class="tight"><span class="sha">f5b4fc7</span></td>
+            <td><strong>No socket and no live call.</strong> Every assertion ran against a mock shaped the way we assumed the API behaves.</td>
+            <td>Real uvicorn tests + 1 verified live extraction</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="callout">
+      <h3>The live call actually worked</h3>
+      <p>
+        A synthetic menu image goes to the real API with extraction unpatched. Claude
+        returned all six dishes with prices transcribed exactly — 4.50, 3.25, 12.50,
+        11.00, 2.80, 3.00. The price assertion is exact equality, not a tolerance.
+      </p>
+    </div>
+  </section>
+
+  <section>
+    <h2>Test layers</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Layer</th>
+            <th>File</th>
+            <th>Tests</th>
+            <th>What is real</th>
+            <th>On push</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Unit</td>
+            <td><code>test_schemas.py</code></td>
+            <td class="num">10</td>
+            <td>Everything — no mocks, no I/O</td>
+            <td><span class="pill pill-pass">Yes</span></td>
+          </tr>
+          <tr>
+            <td>Unit</td>
+            <td><code>test_settings.py</code></td>
+            <td class="num">21</td>
+            <td>Temp YAML files on disk</td>
+            <td><span class="pill pill-pass">Yes</span></td>
+          </tr>
+          <tr>
+            <td>Unit</td>
+            <td><code>test_extraction.py</code></td>
+            <td class="num">17</td>
+            <td>Retry loop; Anthropic client patched</td>
+            <td><span class="pill pill-pass">Yes</span></td>
+          </tr>
+          <tr>
+            <td>API</td>
+            <td><code>test_api.py</code></td>
+            <td class="num">20</td>
+            <td>Real ASGI app and database, in process</td>
+            <td><span class="pill pill-pass">Yes</span></td>
+          </tr>
+          <tr>
+            <td>Socket</td>
+            <td><code>test_server.py</code></td>
+            <td class="num">9</td>
+            <td>Real uvicorn, real TCP, real multipart</td>
+            <td><span class="pill pill-pass">Yes</span></td>
+          </tr>
+          <tr>
+            <td>Live</td>
+            <td><code>test_live.py</code></td>
+            <td class="num">7</td>
+            <td>The real Anthropic API — costs money</td>
+            <td><span class="pill pill-warn">Opt-in</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="note">
+      Live tests are deselected by <code>addopts = -m 'not live'</code> and run only from
+      a separate workflow, triggered by hand. The normal build runs
+      <code>pytest -m live --collect-only</code>, so a misplaced marker fails CI instead of
+      silently disabling the paid tests forever.
+    </p>
+  </section>
+
+  <section>
+    <h2>Skipped from the reference scaffold</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Skipped</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>agents/</code> <code>memory/</code> <code>prompts/</code> <code>evaluation/</code> <code>mcp.py</code></td>
+            <td>Instructed to skip — one LLM call, no agent loop. No stub versions either.</td>
+          </tr>
+          <tr>
+            <td><code>AGENTS.md</code> <code>AGENT_CONTEXT.md</code> <code>DESIGN.md</code> <code>EVALUATION.md</code> <code>CHANGELOG.md</code> <code>TODO.md</code></td>
+            <td>Docs describing the multi-agent system that does not exist here.</td>
+          </tr>
+          <tr>
+            <td><code>evals/</code> <code>migrations/</code></td>
+            <td>No eval harness; <code>create_all()</code> instead of migrations, per D-002.</td>
+          </tr>
+          <tr>
+            <td>Root <code>fixtures/</code></td>
+            <td>Test data lives in <code>tests/fixtures/</code> instead, next to the tests that read it.</td>
+          </tr>
+          <tr>
+            <td><code>scripts/</code> — skipped at Stage 0, <strong>added later</strong></td>
+            <td>Nothing needed it during the build. It now holds one job: deriving this page's published copy.</td>
+          </tr>
+          <tr>
+            <td><code>security/threat-model.md</code> + <code>permissions.md</code></td>
+            <td>Folded into the single <code>SECURITY.md</code> Stage 7 asked for.</td>
+          </tr>
+          <tr>
+            <td><code>security.yml</code> <code>evaluation.yml</code> workflows</td>
+            <td>Only <code>tests.yml</code> was in scope. <code>live.yml</code> was added later, deliberately.</td>
+          </tr>
+          <tr>
+            <td><code>config/staging.yaml</code></td>
+            <td>Stage 0 listed development and production only.</td>
+          </tr>
+          <tr>
+            <td><code>metrics.py</code> <code>telemetry.py</code> <code>tracing.py</code> <code>llm/models.py</code> <code>tools/api.py</code></td>
+            <td>Stage 0 listed <code>logging.py</code> only. Tracing reasoned through in D-003.</td>
+          </tr>
+          <tr>
+            <td>Root <code>schemas/</code> folder</td>
+            <td>Moved inside the package as <code>src/menuforge/schemas/</code> — one importable unit.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Changed from the prototype</h2>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr>
+            <th>Change</th>
+            <th>Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Retry budget, error type and 422 kept identical</strong></td>
+            <td>Instructed to preserve unless there was a reason to change. There was not.</td>
+          </tr>
+          <tr>
+            <td><code>claude-sonnet-4-6</code> → <code>claude-sonnet-5</code></td>
+            <td>Current model, now overridable per deployment without a code change.</td>
+          </tr>
+          <tr>
+            <td><code>max_tokens</code> 2000 → 8000, <code>effort: low</code></td>
+            <td>On this model <code>max_tokens</code> caps thinking and output together.</td>
+          </tr>
+          <tr>
+            <td>Added <code>ExtractionRefusedError</code>, not retried</td>
+            <td>A refusal on a given image is deterministic — retrying burns budget for nothing.</td>
+          </tr>
+          <tr>
+            <td>Added <code>_NoToolUseBlock</code>, retried</td>
+            <td>The prototype's <code>next(...)</code> raised a bare <code>StopIteration</code> into a broad except.</td>
+          </tr>
+          <tr>
+            <td><strong>Added upload validation</strong> — 415 / 413 / 400</td>
+            <td>The prototype had none. Runs before the LLM call, so a bad upload costs no API spend.</td>
+          </tr>
+          <tr>
+            <td><code>on_event</code> → <code>lifespan</code>; <code>query()</code> → <code>select()</code>; <code>Column</code> → <code>Mapped</code></td>
+            <td>Current FastAPI and SQLAlchemy 2.0 idiom; required for strict mypy.</td>
+          </tr>
+          <tr>
+            <td>Module-level engine → lazy <code>get_engine()</code></td>
+            <td>Tests must repoint <code>DATABASE_URL</code> before first use.</td>
+          </tr>
+          <tr>
+            <td><code>psycopg2</code> → <code>psycopg</code> v3; <code>requirements.txt</code> → <code>pyproject.toml</code></td>
+            <td>Current driver and packaging.</td>
+          </tr>
+          <tr>
+            <td><code>docker-compose.yml</code> not ported</td>
+            <td>Not in the Stage 0 list. CI uses a Postgres service container instead.</td>
+          </tr>
+          <tr>
+            <td><code>PRODUCTION.md</code> not ported as a file</td>
+            <td>Its scale-up content became the migration triggers in DECISIONS D-002.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section>
+    <h2>Decision record</h2>
+    <div class="leaders">
+      <div class="leader">
+        <span class="leader-k"><a href="../DECISIONS.md">D-001</a> · Forced tool use over prompted JSON</span>
+        <span class="leader-fill"></span><span class="leader-v">ported</span>
+      </div>
+      <div class="leader">
+        <span class="leader-k"><a href="../DECISIONS.md">D-002</a> · Postgres only, no queue</span>
+        <span class="leader-fill"></span><span class="leader-v">accepted</span>
+      </div>
+      <div class="leader">
+        <span class="leader-k"><a href="../DECISIONS.md">D-003</a> · No tracing decorator</span>
+        <span class="leader-fill"></span><span class="leader-v">accepted</span>
+      </div>
+      <div class="leader">
+        <span class="leader-k"><a href="../DECISIONS.md">D-004</a> · Layered configuration</span>
+        <span class="leader-fill"></span><span class="leader-v">accepted</span>
+      </div>
+      <div class="leader">
+        <span class="leader-k"><a href="../DECISIONS.md">D-005</a> · Live tests off the push path</span>
+        <span class="leader-fill"></span><span class="leader-v">accepted</span>
+      </div>
+    </div>
+    <p class="note">
+      Each entry carries the alternatives rejected and what would trigger revisiting it.
+    </p>
+  </section>
+
+  <section>
+    <h2>What this still will not do</h2>
+    <p class="note">
+      Accepted limits, not oversights. The first four are out of scope by PRD §5; the
+      rest are consequences reasoned through in DECISIONS.
+    </p>
+    <ul>
+      <li><strong>No auth and no rate limiting.</strong> Anyone who can reach the endpoint can spend your API budget.</li>
+      <li><strong>No job queue.</strong> The Claude call runs on the request thread, so client latency equals model latency.</li>
+      <li><strong>No vector search, no frontend, no multi-tenancy.</strong></li>
+      <li><strong>No migrations.</strong> <code>create_all()</code> cannot alter a populated table — the first schema change against real data has no upgrade path. D-002 names this as the first thing to fall.</li>
+      <li><strong>Uploads always append.</strong> Re-uploading the same menu duplicates rows.</li>
+      <li><strong>The image is discarded</strong> after the call, so a failed extraction cannot be replayed or reviewed.</li>
+      <li><strong>A 200 is not an accuracy guarantee.</strong> It means the response validated, not that the model read the menu correctly.</li>
+    </ul>
+  </section>
+
+  <section>
+    <h2>Run it</h2>
+    <pre><span class="c"># install</span>
+pip install -e ".[dev]"
+
+<span class="c"># test — no key, no database, no network needed</span>
+pytest
+
+<span class="c"># the paid one, opt-in, single request</span>
+pytest -m live
+
+<span class="c"># serve</span>
+uvicorn menuforge.main:app --reload</pre>
+    <p class="note">
+      Read next: <a href="../DECISIONS.md"><strong>DECISIONS.md</strong></a> for why the
+      shape is what it is, then <a href="../ARCHITECTURE.md"><strong>ARCHITECTURE.md</strong></a>
+      for the module contracts.
+    </p>
+  </section>
+
+  <footer>
+    main · counts refreshed by <code>scripts/derive_artifact.py</code>
+  </footer>
+</div>
+</body>
+</html>

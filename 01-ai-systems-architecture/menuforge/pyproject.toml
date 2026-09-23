@@ -1,0 +1,64 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "menuforge"
+version = "0.1.0"
+description = "Extract structured menu data from a menu image using Claude forced tool use."
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "anthropic",
+    "pydantic",
+    "sqlalchemy",
+    "psycopg[binary]",
+    "pyyaml",
+    "python-dotenv",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "httpx",
+    "ruff",
+    "mypy",
+    "types-PyYAML",
+    # Only for tests/fixtures/generate_menu_image.py, which is run by hand to
+    # regenerate the committed fixture image. No test imports it.
+    "pillow",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/menuforge"]
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests", "scripts"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+# Live tests cost money, so they are opt-in: run them with `pytest -m live`.
+# A -m on the command line replaces this one, which is what makes that work.
+addopts = "-m 'not live'"
+
+markers = [
+    "live: makes a real, paid Anthropic API call. Deselected by default.",
+]
+
+filterwarnings = [
+    # Starlette's TestClient warns about httpx; not actionable here.
+    "ignore::DeprecationWarning:starlette.*",
+    # uvicorn[standard] pulls in a websockets version that deprecates its own
+    # legacy module. menuforge serves no websockets; nothing for us to fix.
+    "ignore::DeprecationWarning:websockets.*",
+    "ignore::DeprecationWarning:uvicorn.protocols.websockets.*",
+]

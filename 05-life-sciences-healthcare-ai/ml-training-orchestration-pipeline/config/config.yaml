@@ -1,0 +1,83 @@
+# MLOps Pipeline Configuration with Environment Variable Support
+
+project:
+  name: "ml-training-orchestration-pipeline"
+  version: "1.0.0"
+  description: "Asset-orchestrated training pipeline with tracked experiments and model serving"
+
+# Environment-aware settings
+environment: ${ENVIRONMENT:-development}
+debug: ${DEBUG:-true}
+
+# MLflow Configuration
+mlflow:
+  tracking_uri: ${MLFLOW_TRACKING_URI:-file:./mlruns}
+  experiment_name: ${MLFLOW_EXPERIMENT_NAME:-mlops-pipeline}
+
+# API Configuration
+api:
+  host: ${API_HOST:-0.0.0.0}
+  port: ${API_PORT:-8000}
+  workers: ${API_WORKERS:-1}
+
+# Models configuration (unchanged)
+models:
+  available:
+    # Domain-pretrained default: BiomedBERT (formerly PubMedBERT) is pretrained on
+    # PubMed abstracts and PMC full text, which is the same literature the ADE
+    # corpus is drawn from.
+    biomedbert_classifier:
+      source: "huggingface"
+      model_name: "microsoft/BiomedNLP-BiomedBERT-base-uncased-abstract-fulltext"
+      task: "classification"
+      fine_tunable: true
+
+    # Kept as the general-domain baseline. The point of using a domain model is
+    # only demonstrable against a general one, so this stays in comparison_set.
+    bert_classifier:
+      source: "huggingface"
+      model_name: "bert-base-uncased"
+      task: "classification"
+      fine_tunable: true
+
+    distilbert_classifier:
+      source: "huggingface" 
+      model_name: "distilbert-base-uncased"
+      task: "classification"
+      fine_tunable: true
+    
+    custom_lstm:
+      source: "local"
+      model_path: "models/custom_lstm.pt"
+      task: "classification"
+      architecture: "lstm"
+
+  default: "biomedbert_classifier"
+  comparison_set: ["biomedbert_classifier", "bert_classifier", "distilbert_classifier"]
+
+# Data configuration
+data:
+  raw_path: "data/raw"
+  processed_path: "data/processed"
+  test_size: 0.2
+  random_state: 42
+
+# Training configuration
+training:
+  batch_size: 32
+  learning_rate: 2e-5
+  epochs: 10
+  max_seq_length: 512
+  warmup_steps: 500
+
+# Monitoring configuration
+monitoring:
+  enabled: ${DRIFT_DETECTION_ENABLED:-true}
+  drift_threshold: 0.05
+  check_interval: ${DRIFT_CHECK_INTERVAL:-3600}
+  prometheus_port: ${PROMETHEUS_PORT:-8001}
+
+# Logging configuration
+logging:
+  level: ${LOG_LEVEL:-INFO}
+  file: ${LOG_FILE:-logs/mlops.log}

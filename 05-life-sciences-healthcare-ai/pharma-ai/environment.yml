@@ -1,0 +1,15 @@
+name: pharma-ai-env
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - rdkit
+  - pandas
+  - numpy
+  - matplotlib
+  - biopython
+  - scikit-learn
+  - openbabel
+  - pip
+  - pip:
+      - py3Dmol

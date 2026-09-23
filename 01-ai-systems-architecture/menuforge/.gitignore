@@ -1,0 +1,38 @@
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Local prompt / brief files (not part of the project)
+promt.txt
+menuforge-claude-code-prompt.md
+
+# Personal run notes
+how to run.md
+venv-setup.md
+
+# Local tooling audit log
+docs/decisions/auto-changes.log
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

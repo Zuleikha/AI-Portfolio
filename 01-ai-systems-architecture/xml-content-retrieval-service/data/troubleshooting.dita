@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE topic PUBLIC "-//OASIS//DTD DITA Topic//EN" "topic.dtd">
+<topic id="troubleshooting">
+  <title>Troubleshooting Common Issues</title>
+  <shortdesc>Solutions to frequently reported problems in OpenRoads Designer.</shortdesc>
+  <body>
+    <section id="performance">
+      <title>Performance Issues</title>
+      <p>If the application is running slowly, check that your system meets the recommended hardware specifications. Large design files with complex terrain models require significant GPU and RAM resources.</p>
+      <p>Reduce display density and disable unnecessary reference files to improve viewport performance.</p>
+      <p>Ensure your GPU drivers are up to date. Outdated drivers are a common cause of rendering slowdowns and crashes.</p>
+    </section>
+    <section id="license-errors">
+      <title>License Errors</title>
+      <p>License checkout failures are usually caused by network connectivity issues or exhausted license seats.</p>
+      <p>Contact your Bentley administrator to check license seat availability. If seats are available, try signing out of CONNECTION Center and signing back in.</p>
+      <p>If working offline, ensure your license is configured for offline use and that the offline lease has not expired.</p>
+    </section>
+    <section id="file-errors">
+      <title>File Open and Save Errors</title>
+      <p>If a DGN file fails to open, it may be corrupt or incompatible with your version. Use the File Recovery tool from the File menu to attempt repair.</p>
+      <p>Save failures are often caused by file permissions or network path issues. Save locally first and then copy to a network location.</p>
+    </section>
+    <section id="crashes">
+      <title>Application Crashes</title>
+      <p>Enable crash reporting in preferences to send diagnostic data to Bentley support. Crash logs are stored in the user AppData directory under Bentley.</p>
+      <p>If crashes occur repeatedly on specific operations, document the steps and contact Bentley technical support with the log files.</p>
+    </section>
+  </body>
+</topic>

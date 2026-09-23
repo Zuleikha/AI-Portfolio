@@ -1,0 +1,26 @@
+FROM python:3.11-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    git \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy project metadata and source, then install.
+# README.md and LICENSE are required because pyproject.toml references them.
+COPY pyproject.toml README.md LICENSE ./
+COPY src/ ./src/
+COPY config/ ./config/
+
+RUN pip install --no-cache-dir .
+
+# Create non-root user
+RUN useradd -m -u 1000 mlops && chown -R mlops:mlops /app
+USER mlops
+
+EXPOSE 8000
