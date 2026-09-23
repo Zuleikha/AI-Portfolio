@@ -258,9 +258,3 @@ Stated plainly, because several of these were previously described inaccurately.
   rather than ranking on one number
 
 Programming is the supporting capability here, not the subject.
-
----
-
-## License
-
-MIT — see [LICENSE](LICENSE).

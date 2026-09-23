@@ -265,9 +265,4 @@ returned CC-BY, CC-BY-NC and CC-BY-NC-ND side by side). `scripts/fetch_pmc.py`
 rebuilds it and records each article's id and stated licence in a manifest.
 
 **Service.** Retrieval is a single dense leg with no reranking. There is no auth,
-and `/index` spends OpenAI credit on demand. All tracked in
-[docs/ROADMAP.md](docs/ROADMAP.md) and [docs/SECURITY.md](docs/SECURITY.md).
-
-## Licence
-
-MIT — see [LICENSE](LICENSE).
+and `/index` spends OpenAI credit on demand.
