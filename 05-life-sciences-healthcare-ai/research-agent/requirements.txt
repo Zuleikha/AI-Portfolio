@@ -1,0 +1,5 @@
+# Versions to be pinned in stage 2 (environment setup).
+langgraph
+httpx
+python-dotenv
+pytest
