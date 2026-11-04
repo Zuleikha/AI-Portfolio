@@ -101,6 +101,7 @@ All HTTP calls are mocked with `httpx.MockTransport`. The tests make **no real n
 | empty query | `ValueError` (R1) |
 | default max_results | ESearch is asked for 5 results (`retmax=5`) (R2) |
 | max_results 0 and 51 | `ValueError` (R2) |
+| max_results 1 and 50 | accepted (R2) |
 | missing email | `PubMedConfigError` (R3) |
 | 503 then 200 | retries, then succeeds (R6) |
 | 503 three times | `PubMedError` (R6) |
