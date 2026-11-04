@@ -216,6 +216,13 @@ def test_max_results_out_of_range_raises_value_error(max_results: int) -> None: 
         search_pubmed("q", max_results=max_results)
 
 
+@pytest.mark.parametrize("max_results", [1, 50])
+def test_max_results_at_edges_is_accepted(max_results: int) -> None:  # R2
+    fake = FakeNCBI(esearch=ok_search(["1"]), efetch=ok_fetch(article_xml("1", "T")))
+    result = search_pubmed("q", max_results=max_results, client=fake.client())
+    assert len(result.papers) == 1
+
+
 def test_missing_email_raises_config_error(monkeypatch: pytest.MonkeyPatch) -> None:  # R3
     monkeypatch.delenv("NCBI_EMAIL")
     fake = FakeNCBI(esearch=ok_search(["1"]), efetch=ok_fetch(article_xml("1", "T")))
