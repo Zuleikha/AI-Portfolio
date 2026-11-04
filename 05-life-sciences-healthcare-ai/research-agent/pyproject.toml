@@ -5,8 +5,11 @@ requires-python = ">=3.14"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-markers = ["live: calls the real NCBI API (opt-in: pytest -m live)"]
-addopts = "-m 'not live'"
+markers = [
+    "live: calls the real NCBI API, free (opt-in: pytest -m live)",
+    "live_paid: calls the real Anthropic API, COSTS MONEY (opt-in: pytest -m live_paid, user OK each run)",
+]
+addopts = "-m 'not live and not live_paid'"
 
 [tool.ruff]
 line-length = 100
@@ -23,4 +26,5 @@ known-first-party = ["research_agent"]
 
 [tool.mypy]
 strict = true
+plugins = ["pydantic.mypy"]
 packages = ["research_agent", "tests"]
