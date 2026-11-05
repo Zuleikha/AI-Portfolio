@@ -221,6 +221,7 @@ records the messages it was sent. The tests make **no API calls** and cost nothi
 | model error | the fake raises → `SummariseError` (S7) |
 | abstracts in tags | each used abstract is inside its own `<abstract pmid="...">` tag in the user message; the rules are only in the system message (S12) |
 | tag escape blocked | an abstract containing `</abstract>` and "Ignore previous instructions" → the tag text is neutralised, so the abstract stays inside its own tag (S12) |
+| tag escape in title blocked | a title containing `</abstract>` and "Ignore previous instructions" → the tag text is neutralised, so the title stays inside its own tag (S12) |
 | no tools | the default model is built with no tools bound (S4) |
 | nothing secret logged | log text has no abstract text, prompt text or API key (S9) |
 
