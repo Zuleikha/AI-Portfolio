@@ -15,9 +15,10 @@ from dotenv import dotenv_values
 
 FAKE_EMAIL = "tester@example.com"
 FAKE_MODEL = "claude-test-model"
+FAKE_CHECK_MODEL = "claude-test-check-model"
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 NCBI_SETTINGS = ("NCBI_EMAIL", "NCBI_API_KEY")
-ANTHROPIC_SETTINGS = ("ANTHROPIC_API_KEY", "ANTHROPIC_MODEL")
+ANTHROPIC_SETTINGS = ("ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "ANTHROPIC_CHECK_MODEL")
 
 
 def _load_real(monkeypatch: pytest.MonkeyPatch, names: tuple[str, ...]) -> None:
@@ -43,6 +44,7 @@ def clean_env(
     monkeypatch.setenv("NCBI_EMAIL", FAKE_EMAIL)
     monkeypatch.delenv("NCBI_API_KEY", raising=False)
     monkeypatch.setenv("ANTHROPIC_MODEL", FAKE_MODEL)
+    monkeypatch.setenv("ANTHROPIC_CHECK_MODEL", FAKE_CHECK_MODEL)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
     if request.node.get_closest_marker("live"):
