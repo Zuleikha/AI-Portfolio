@@ -1,6 +1,6 @@
 # Research Agent: PRD
 
-Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Stages 5 to 7: not yet specified.
+Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stages 5 to 7: not yet specified.
 
 ## Goal
 
@@ -254,3 +254,68 @@ Test-only hook (not part of the public interface): `summarise(..., llm=...)` tak
 - `with_structured_output(schema, method="json_schema")` = Anthropic native structured output; needs `langchain-anthropic>=1.1.0`
 - Default `max_retries` is 6; retries 429, 5xx and network errors; not 401 or 404
 - Newer Claude models return 400 for non-default `temperature`, `top_p` or `top_k`
+
+---
+
+## Demo script: real search + real summary (supports Stage 5)
+
+Status: **APPROVED by user 2026-11-06** (plan agreed in chat; build on that basis).
+
+### Why
+
+The paid live test uses two made-up papers. To design Stage 5 (citation check), the user needs
+to see real claims from real PubMed papers. This script is a **stop-gap**: Stage 6 (graph +
+audit log) will replace it. It does not change the paid live test or any Stage 3/4 behaviour.
+
+### Usage
+
+```
+python -m scripts.demo_run "<query>" --yes   # from the research-agent folder
+```
+
+### Interface
+
+```python
+main(argv: list[str] | None = None, *, client: httpx.Client | None = None,
+     llm: Runnable | None = None, runs_dir: Path = Path("runs")) -> int
+build_record(result: SearchResult, summary: Summary, created_at: datetime) -> dict[str, Any]
+write_record(record: dict[str, Any], runs_dir: Path, created_at: datetime) -> Path
+```
+
+`client`, `llm` and `runs_dir` are test hooks; leave them out in normal use.
+
+### Record (JSON)
+
+| Key | Content |
+|---|---|
+| `source` | `"live demo"` (never mistaken for a test fixture) |
+| `created_at` | UTC time, ISO 8601 |
+| `search` | `dataclasses.asdict(SearchResult)`: `query`, `total_found`, each paper (`pmid`, `title`, `abstract`, `journal`, `year`, `url`) |
+| `summary` | `dataclasses.asdict(Summary)`: `model`, `claims` (`text`, `pmids`), `used_pmids`, `skipped` (with reason), `rejected` (with reason) |
+
+### Rules
+
+| # | Rule |
+|---|---|
+| D1 | Query comes from the command line. Searches PubMed with `max_results=5` (module constant). |
+| D2 | **Spend guard:** without `--yes` the script prints that it would call the paid Anthropic API, exits with code 2, and makes **no** PubMed or model call and writes no file. |
+| D3 | Writes `runs/demo_<YYYYMMDDTHHMMSSZ>.json` (UTC). Creates `runs/` if missing. Never overwrites: if the file exists, it fails loud (`FileExistsError`). `runs/` is already gitignored. |
+| D4 | The record is built from the dataclasses with `asdict()`, not by hand (they are dataclasses, not Pydantic, so `model_dump()` does not apply). |
+| D5 | Prints only the file path and counts (papers, claims, skipped, rejected). Never prints or logs abstracts, the prompt, the reply or keys (S9). The abstracts are in the JSON file only. |
+| D6 | `.env` is loaded only when run as a script (`__main__`), never inside `main()`, so offline tests never read real keys. |
+| D7 | Errors from PubMed or the model are not caught: they fail loud. |
+| D8 | Every function uses `@traced`. |
+
+### Tests (offline, written first; fake NCBI + fake model, no cost)
+
+| Test | Checks |
+|---|---|
+| no `--yes` | exit code 2, no NCBI request, model not called, no file (D2) |
+| happy path | file written with `source`, `query`, `total_found`, `model`, papers (pmid, title, abstract), claims with `pmids` (D3, D4) |
+| skipped and rejected kept | a paper with no abstract is in `skipped` with its reason; a claim citing an unknown PMID is in `rejected` with its reason |
+| creates `runs/` | a missing runs folder is created (D3) |
+| file name and no overwrite | name is `demo_<UTC stamp>.json`; writing twice with the same time raises `FileExistsError` (D3) |
+| nothing secret printed | stdout has the path and counts but no abstract text (D5) |
+| record from dataclasses | `build_record` gives `source`, `created_at` and `asdict()` of search and summary (D4) |
+
+No new paid test: the user runs the script by hand, with their OK each time (S11).

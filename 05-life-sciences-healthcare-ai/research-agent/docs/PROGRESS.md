@@ -18,6 +18,12 @@ Build a LangGraph agent that searches PubMed, summarises the findings, checks ev
 - [ ] 6. Connect the steps into a graph, add the audit log, and run it
 - [ ] 7. Add tracing with Langfuse or LangSmith
 
+## Known issues
+
+| # | Found | Stage | Issue | Status |
+|---|---|---|---|---|
+| K1 | 2026-11-06 | 3 | **Bug:** search returns the newest papers, not the most relevant. `search_pubmed` sends no `sort` to ESearch, so E-utilities use their default "most recent" order (demo run: all 5 papers from 2025-26, 3 claims off-topic). Likely fix: `sort=relevance` + a test. | ⬜ Fix later (needs PRD update first) |
+
 ## Session log
 
 | Date | What was done | Next step |
@@ -39,3 +45,5 @@ Build a LangGraph agent that searches PubMed, summarises the findings, checks ev
 | 2026-11-04 | Stage 4 committed and pushed. ⚠️ Paid live test (`pytest -m live_paid`) NOT yet run: needs user OK (costs money). | Stage 5 spec (citation check); optionally run the paid live test with user OK. |
 | 2026-11-05 | Stage 4: added test `test_tag_escape_in_title_is_neutralised` (S12, `</abstract>` in title is neutralised) next to the abstract tag-escape test; PRD row added. 43 offline passed, 2 deselected. ruff + mypy --strict clean. Paid live test still NOT run. | Stage 5 spec (citation check); optionally run the paid live test with user OK. |
 | 2026-11-05 | Paid live test (`pytest -m live_paid`) ran and passed at 10:11 (reported by user). Stage 4 fully verified, including against the real model. | Stage 5 spec (citation check). |
+| 2026-11-06 | Demo script spec added to PRD (user approved in chat). Wrote `tests/test_demo_run.py` (7 offline tests, red: no module), then `scripts/demo_run.py`: real PubMed search (5) + real summary → `runs/demo_<UTC>.json` via `asdict()`, `--yes` spend guard. 50 passed (43 + 7), 2 deselected. ruff + mypy --strict clean (`scripts` added to config). Spend guard checked by hand: exit 2, nothing run.  |
+| 2026-11-06 | Paid demo run (user OK): `"metformin side effects"` → `runs/demo_20261106T092035Z.json`. 5 papers (of 8,959), 10 claims, 0 skipped, 0 rejected, model claude-haiku-5-5. All claims cite valid PMIDs, but 3 are about alpha-glucosidase inhibitors, not metformin, and only 2 are about side effects: the PMID check proves *which* paper, not *support* or *relevance*. Input for Stage 5. Not committed. | User reviews claims → commit demo script; then Stage 5 spec. |
