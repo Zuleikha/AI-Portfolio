@@ -13,7 +13,7 @@ import re
 import threading
 import time
 import xml.etree.ElementTree as ET  # noqa: N817 - conventional alias
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 import httpx
@@ -27,6 +27,7 @@ ESEARCH_ENDPOINT = "esearch.fcgi"
 EFETCH_ENDPOINT = "efetch.fcgi"
 PUBMED_URL_TEMPLATE = "https://pubmed.ncbi.nlm.nih.gov/{pmid}/"
 TOOL_NAME = "research-agent"
+SORT_ORDER = "relevance"  # R11: "Best Match"; the ESearch default is "most recent"
 
 DEFAULT_MAX_RESULTS = 5
 MIN_RESULTS = 1
@@ -63,6 +64,8 @@ class Paper:
     journal: str
     year: int | None
     url: str
+    authors: list[str] = field(default_factory=list)  # R12
+    doi: str | None = None  # R13
 
 
 @dataclass(frozen=True)
@@ -208,6 +211,33 @@ def _parse_year(article: ET.Element) -> int | None:
 
 
 @traced
+def _parse_author(author: ET.Element) -> str | None:
+    """``"<LastName> <Initials>"``, a group name as written, or None (R12)."""
+    group = _text(author.find("CollectiveName"))
+    if group is not None:
+        return group
+    last = _text(author.find("LastName"))
+    if last is None:
+        return None
+    initials = _text(author.find("Initials"))
+    return f"{last} {initials}" if initials else last
+
+
+@traced
+def _parse_authors(article: ET.Element) -> list[str]:
+    names = (_parse_author(a) for a in article.findall("AuthorList/Author"))
+    return [name for name in names if name is not None]
+
+
+@traced
+def _parse_doi(node: ET.Element, article: ET.Element) -> str | None:
+    """ArticleIdList first, then ELocationID, else None (R13)."""
+    return _text(node.find("PubmedData/ArticleIdList/ArticleId[@IdType='doi']")) or _text(
+        article.find("ELocationID[@EIdType='doi']")
+    )
+
+
+@traced
 def _parse_paper(node: ET.Element) -> Paper:
     pmid = _text(node.find("MedlineCitation/PMID"))
     article = node.find("MedlineCitation/Article")
@@ -224,6 +254,8 @@ def _parse_paper(node: ET.Element) -> Paper:
         journal=journal,
         year=_parse_year(article),
         url=PUBMED_URL_TEMPLATE.format(pmid=pmid),
+        authors=_parse_authors(article),
+        doi=_parse_doi(node, article),
     )
 
 
@@ -276,7 +308,13 @@ def search_pubmed(
         search = _get(
             http,
             ESEARCH_ENDPOINT,
-            {**common, "term": query, "retmax": str(max_results), "retmode": "json"},
+            {
+                **common,
+                "term": query,
+                "retmax": str(max_results),
+                "sort": SORT_ORDER,
+                "retmode": "json",
+            },
             bool(api_key),
         )
         pmids, total_found = _parse_esearch(search)

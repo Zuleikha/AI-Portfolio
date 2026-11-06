@@ -23,4 +23,13 @@ cp .env.example .env   # then fill in your own values
 pytest
 ```
 
+## Demo run (costs money)
+
+Real PubMed search (5 papers) + real Claude summary, saved to `runs/demo_<UTC time>.json`
+(gitignored). Calls the paid Anthropic API, so it refuses to run without `--yes`.
+
+```bash
+python -m scripts.demo_run "metformin side effects" --yes
+```
+
 Uses public PubMed data only. No patient data.

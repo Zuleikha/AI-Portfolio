@@ -22,7 +22,22 @@ Build a LangGraph agent that searches PubMed, summarises the findings, checks ev
 
 | # | Found | Stage | Issue | Status |
 |---|---|---|---|---|
-| K1 | 2026-11-06 | 3 | **Bug:** search returns the newest papers, not the most relevant. `search_pubmed` sends no `sort` to ESearch, so E-utilities use their default "most recent" order (demo run: all 5 papers from 2025-26, 3 claims off-topic). Likely fix: `sort=relevance` + a test. | ⬜ Fix later (needs PRD update first) |
+| K1 | 2026-11-06 | 3 | **Bug:** search returns the newest papers, not the most relevant. `search_pubmed` sends no `sort` to ESearch, so E-utilities use their default "most recent" order (demo run: all 5 papers from 2025-26, 3 claims off-topic). Likely fix: `sort=relevance` + a test. | ✅ Fixed 2026-11-06 (Stage 3 revision, R11 `sort=relevance`) |
+
+## Settled decisions (2026-11-06, user: "accept all")
+
+| Q | For | Decision |
+|---|---|---|
+| Q1 | Stage 5 | One model call **per claim** (claims checked independently) |
+| Q2 | Stage 5 | Separate `ANTHROPIC_CHECK_MODEL` env setting (may hold the same value as `ANTHROPIC_MODEL`) |
+| Q3 | Stage 5 | Every standalone number in a claim must appear in the model's **quotes** (not just the abstract); false fails accepted and logged |
+| Q4 | Stage 5 | Relevance to the query is **out of scope** for Stage 5; it checks support only |
+| Q5 | Stage 5 | A model error on any claim **stops the run** (fail loud, like Stage 4) |
+| Q6 | Stage 3r | Stage 3 revision done **before** Stage 5 |
+| Q7 | Stage 6 | Citation shows the first 3 authors + "et al." |
+| Q8 | Stage 3r | Fetch DOI as an optional field |
+
+Also agreed for Stage 5 (design review): quotes as a list of `{pmid, quote}`; each quote must be in the abstract of a PMID the claim cites; standalone numbers only (ignore `B12`, `HbA1c`, `IC50`); claim text in a `<claim>` tag; reason codes `not supported` / `quote not found` / `quote from uncited PMID` / `number missing: <n>`. Known limit: reversed meaning with the same numbers relies on the model verdict.
 
 ## Session log
 
@@ -47,3 +62,6 @@ Build a LangGraph agent that searches PubMed, summarises the findings, checks ev
 | 2026-11-05 | Paid live test (`pytest -m live_paid`) ran and passed at 10:11 (reported by user). Stage 4 fully verified, including against the real model. | Stage 5 spec (citation check). |
 | 2026-11-06 | Demo script spec added to PRD (user approved in chat). Wrote `tests/test_demo_run.py` (7 offline tests, red: no module), then `scripts/demo_run.py`: real PubMed search (5) + real summary → `runs/demo_<UTC>.json` via `asdict()`, `--yes` spend guard. 50 passed (43 + 7), 2 deselected. ruff + mypy --strict clean (`scripts` added to config). Spend guard checked by hand: exit 2, nothing run.  |
 | 2026-11-06 | Paid demo run (user OK): `"metformin side effects"` → `runs/demo_20261106T092035Z.json`. 5 papers (of 8,959), 10 claims, 0 skipped, 0 rejected, model claude-haiku-5-5. All claims cite valid PMIDs, but 3 are about alpha-glucosidase inhibitors, not metformin, and only 2 are about side effects: the PMID check proves *which* paper, not *support* or *relevance*. Input for Stage 5. Not committed. | User reviews claims → commit demo script; then Stage 5 spec. |
+| 2026-11-06 | User accepted Q1 to Q8. Stage 5 picks: one call per claim, separate `ANTHROPIC_CHECK_MODEL`, numbers must be in the quotes, relevance later, stop on error. Drafted **Stage 3 revision** spec in PRD (R11 `sort=relevance` fixes K1; R12 authors; R13 DOI; 10 new tests; citation string handed to Stage 6). Spec only, no code. | User approves Stage 3 revision spec → failing tests. Then Stage 5 spec (with Q1 to Q5 answers). |
+| 2026-11-06 | Stage 3 revision spec **APPROVED** (R14 narrowed: application logs only; the audit record must include authors, DOI, title). Wrote 10 failing tests in `tests/test_pubmed.py` (helper `article_xml` got 2 optional parts, defaults unchanged; live test checks `url` + `authors`). Red: 10 failed for the right reasons (no `sort`, no `authors`, no `doi`); 50 passed. Docs: ARCHITECTURE + README now list the demo script (missed in 4eb1402). Not committed. | Build R11 to R13 in `tools/pubmed.py` until 60 pass; ruff + mypy clean; run free `pytest -m live`; commit. |
+| 2026-11-06 | Built Stage 3 revision in `tools/pubmed.py`: R11 `sort=relevance` (K1 fixed), R12 `authors`, R13 `doi` (new `Paper` fields with defaults). 60 passed (50 + 10), 2 deselected. ruff + mypy --strict clean. Free live test (`pytest -m live`) passed against real NCBI. Added "Settled decisions" table (Q1 to Q8). Committed. | Stage 5 spec (citation check) in PRD, using Q1 to Q5 + design review. |

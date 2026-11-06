@@ -1,6 +1,6 @@
 # Research Agent: PRD
 
-Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stages 5 to 7: not yet specified.
+Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stages 5 to 7: not yet specified.
 
 ## Goal
 
@@ -19,6 +19,7 @@ approved by the user before it is built.
 | 1 | Folder structure | Done, no spec needed (setup) |
 | 2 | Environment and LangGraph install | Done, no spec needed (setup) |
 | 3 | PubMed search tool | ✅ Section below, APPROVED |
+| 3r | Stage 3 revision: relevance sort (K1), authors, DOI | ✅ Section below, APPROVED |
 | 4 | Summarise step | ✅ Section below, APPROVED |
 | 5 | Citation check step | ⬜ Section to be added before build |
 | 6 | Graph, audit log, first run | ⬜ Section to be added before build |
@@ -128,6 +129,83 @@ Plus one **optional live test**, marked `@pytest.mark.live` and skipped by defau
 - All tests pass
 - `ruff check`, `ruff format` and `mypy --strict` are clean (ruff and mypy are pinned in `requirements-dev.txt`)
 - `PROGRESS.md` is updated and the work is committed
+
+---
+
+## Stage 3 revision: relevance sort, authors, DOI
+
+Status: **APPROVED by user 2026-11-06** (R14 narrowed to application logs at approval). (Q6 to Q8 settled 2026-11-06: revise before Stage 5; citation = first 3 authors + "et al."; DOI optional).
+
+### Why
+
+| # | Problem | Source |
+|---|---|---|
+| 1 | Search returns the **newest** papers, not the most relevant (known issue K1). ESearch's default sort for PubMed is "most recent"; Stage 3 sends no `sort`. | Demo run 2026-11-06: all 5 papers from 2025-26, 3 of 10 claims off-topic |
+| 2 | A reader cannot check a paper exists from the output: there are **no authors** and **no DOI**. The PubMed link (`url`) already exists. | User request 2026-11-06 |
+
+Both come from the same EFetch XML already downloaded: **no extra API calls**.
+
+### Interface change
+
+`search_pubmed` signature is unchanged. `Paper` gets two new fields, **at the end, with defaults**,
+so existing code and tests that build `Paper` keep working unchanged.
+
+| New `Paper` field | Type | Default | Notes |
+|---|---|---|---|
+| `authors` | `list[str]` | `[]` | In the order PubMed lists them, e.g. `["Shrestha A", "Rai KB"]` |
+| `doi` | `str \| None` | `None` | Bare DOI, e.g. `10.1000/xyz123` (no `https://doi.org/` prefix) |
+
+### Rules
+
+| # | Rule |
+|---|---|
+| R11 | ESearch always sends `sort=relevance` ("Best Match"), from a module constant. Never rely on the server default. |
+| R12 | `authors` comes from `MedlineCitation/Article/AuthorList/Author`, in order. Each is `"<LastName> <Initials>"`; `LastName` only if there are no initials; a `CollectiveName` (group author) is used as written. An `Author` with neither is skipped. No `AuthorList` → `[]` (not an error). All authors are kept; shortening to 3 + "et al." is a display job (Stage 6). |
+| R13 | `doi` comes from `PubmedData/ArticleIdList/ArticleId[@IdType="doi"]`; if absent, from `Article/ELocationID[@EIdType="doi"]`; if both absent, `None` (not an error). Whitespace trimmed. Not checked against doi.org (no extra call). |
+| R14 | **Application logs only** (Python `logging`, `runs/trace.log`): authors, DOIs and titles are never logged; counts only. R8 and `@traced` still apply. This does **not** limit the audit record: the Stage 6 audit record (and the demo JSON) **must** include each paper's authors, DOI and title, so a reader can check the paper exists. |
+
+### Tests (written first, failing before the code changes)
+
+Same fake NCBI (`httpx.MockTransport`) as Stage 3. **All 25 existing Stage 3 tests stay unchanged and must still pass.**
+
+| Test | Checks |
+|---|---|
+| sort sent | the ESearch request has `sort=relevance` (R11) |
+| authors parsed | 2 authors → `["Shrestha A", "Rai KB"]`, in XML order (R12) |
+| many authors kept | 5 authors → all 5 kept (R12) |
+| last name only | an author with no initials → `"Shrestha"` (R12) |
+| group author | `CollectiveName` → used as written (R12) |
+| empty author skipped | an `Author` with no name parts is skipped (R12) |
+| no author list | `authors == []` (R12) |
+| DOI from ArticleIdList | → that DOI (R13) |
+| DOI fallback | only `ELocationID` has it → that DOI (R13) |
+| no DOI | `doi is None` (R13) |
+
+The optional `live` test (free) gets one extra check: every paper has a `url` and the `authors` field
+is a list. Run it once after the build, to confirm the real XML matches.
+
+### Handed on to Stage 6 (not built here)
+
+The audit record must include each paper's `authors`, `doi` and `title` in full (R14).
+Short citation for display and the audit record, built from `Paper`:
+`<first 3 authors>, et al. <title> <journal>. <year>. <url>` (no "et al." when there are 3 or fewer;
+`doi:<doi>` added when present).
+
+### Out of scope
+
+- Building the citation string (Stage 6)
+- Checking DOIs against doi.org, affiliations, ORCID IDs
+- Any other sort option or a sort setting for the user
+
+### Done when
+
+- 25 existing + 10 new Stage 3 tests pass; Stage 4 and demo tests still pass
+- `ruff check`, `ruff format --check` and `mypy --strict` are clean
+- K1 marked fixed in `PROGRESS.md`; work committed
+
+### Checked against NCBI docs (2026-11-06)
+
+- `sort=relevance` = "Best Match"; ESearch's PubMed default is "most recent" (NCBI Insights, 2022 PubMed E-utilities update). Our demo run matches this.
 
 ---
 

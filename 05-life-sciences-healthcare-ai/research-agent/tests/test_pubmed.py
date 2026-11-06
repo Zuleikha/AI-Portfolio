@@ -33,8 +33,14 @@ def article_xml(
     year: str | None = "2021",
     abstract: str | None = "An abstract.",
     sections: list[tuple[str, str]] | None = None,
+    article_extra: str = "",
+    pubmed_data: str = "",
 ) -> str:
-    """One <PubmedArticle> in the shape EFetch returns."""
+    """One <PubmedArticle> in the shape EFetch returns.
+
+    ``article_extra`` goes inside <Article> (AuthorList, ELocationID);
+    ``pubmed_data`` is a <PubmedData> block. Both default to nothing.
+    """
     if sections is not None:
         abstract_xml = (
             "<Abstract>"
@@ -59,8 +65,10 @@ def article_xml(
           </Journal>
           <ArticleTitle>{title}</ArticleTitle>
           {abstract_xml}
+          {article_extra}
         </Article>
       </MedlineCitation>
+      {pubmed_data}
     </PubmedArticle>"""
 
 
@@ -300,6 +308,92 @@ def test_rate_limit_gap_between_requests(
     assert fake.times[1] - fake.times[0] >= min_gap - 0.005  # small clock tolerance
 
 
+# ---------------------------------------------------------------- Stage 3 revision (R11 to R13)
+
+
+def author(last: str | None = None, initials: str | None = None) -> str:
+    parts = (f"<LastName>{last}</LastName>" if last else "") + (
+        f"<Initials>{initials}</Initials>" if initials else ""
+    )
+    return f"<Author>{parts}</Author>"
+
+
+def author_list(*authors: str) -> str:
+    return "<AuthorList>" + "".join(authors) + "</AuthorList>"
+
+
+def doi_id(doi: str) -> str:
+    return (
+        '<PubmedData><ArticleIdList><ArticleId IdType="pubmed">1</ArticleId>'
+        f'<ArticleId IdType="doi">{doi}</ArticleId></ArticleIdList></PubmedData>'
+    )
+
+
+def doi_elocation(doi: str) -> str:
+    return f'<ELocationID EIdType="doi" ValidYN="Y">{doi}</ELocationID>'
+
+
+def one_paper(article_extra: str = "", pubmed_data: str = "") -> Paper:
+    xml = article_xml("1", "T", article_extra=article_extra, pubmed_data=pubmed_data)
+    fake = FakeNCBI(esearch=ok_search(["1"]), efetch=ok_fetch(xml))
+    return search_pubmed("q", client=fake.client()).papers[0]
+
+
+def test_esearch_sends_relevance_sort() -> None:  # R11
+    fake = FakeNCBI(esearch=ok_search(["1"]), efetch=ok_fetch(article_xml("1", "T")))
+    search_pubmed("q", client=fake.client())
+    assert fake.requests[0].url.params["sort"] == "relevance"
+
+
+def test_authors_parsed_in_order() -> None:  # R12
+    extra = author_list(author("Shrestha", "A"), author("Rai", "KB"))
+    assert one_paper(article_extra=extra).authors == ["Shrestha A", "Rai KB"]
+
+
+def test_all_authors_kept() -> None:  # R12
+    names = [("A1", "X"), ("A2", "X"), ("A3", "X"), ("A4", "X"), ("A5", "X")]
+    extra = author_list(*(author(last, ini) for last, ini in names))
+    assert one_paper(article_extra=extra).authors == ["A1 X", "A2 X", "A3 X", "A4 X", "A5 X"]
+
+
+def test_author_without_initials_is_last_name_only() -> None:  # R12
+    extra = author_list(author("Shrestha"))
+    assert one_paper(article_extra=extra).authors == ["Shrestha"]
+
+
+def test_group_author_used_as_written() -> None:  # R12
+    extra = author_list(
+        author("Rai", "KB"),
+        "<Author><CollectiveName>BRCA Study Group</CollectiveName></Author>",
+    )
+    assert one_paper(article_extra=extra).authors == ["Rai KB", "BRCA Study Group"]
+
+
+def test_author_with_no_name_is_skipped() -> None:  # R12
+    extra = author_list(author("Rai", "KB"), "<Author></Author>")
+    assert one_paper(article_extra=extra).authors == ["Rai KB"]
+
+
+def test_no_author_list_gives_empty_list() -> None:  # R12
+    assert one_paper().authors == []
+
+
+def test_doi_from_article_id_list() -> None:  # R13
+    paper = one_paper(
+        pubmed_data=doi_id(" 10.1000/main "),
+        article_extra=doi_elocation("10.1000/fallback"),
+    )
+    assert paper.doi == "10.1000/main"
+
+
+def test_doi_falls_back_to_elocation_id() -> None:  # R13
+    assert one_paper(article_extra=doi_elocation("10.1000/fallback")).doi == "10.1000/fallback"
+
+
+def test_no_doi_gives_none() -> None:  # R13
+    assert one_paper().doi is None
+
+
 # ---------------------------------------------------------------- live (opt-in)
 
 
@@ -317,3 +411,6 @@ def test_live_pubmed_search() -> None:
     assert 1 <= len(result.papers) <= 3
     assert result.total_found >= len(result.papers)
     assert all(p.pmid.isdigit() for p in result.papers)
+    # Stage 3 revision: the real XML gives a link and an authors list for each paper.
+    assert all(p.url == f"https://pubmed.ncbi.nlm.nih.gov/{p.pmid}/" for p in result.papers)
+    assert all(isinstance(p.authors, list) for p in result.papers)

@@ -24,7 +24,7 @@ audit/run_log.py ──▶ runs/<run-id>.json (on disk, gitignored)
 
 | Module | Job | May import | Stage |
 |---|---|---|---|
-| `tools/pubmed.py` | Search PubMed, return `Paper`s | `observability` only | 3 |
+| `tools/pubmed.py` | Search PubMed (relevance order), return `Paper`s with authors, DOI and link | `observability` only | 3, 3r |
 | `observability.py` | `@traced` decorator, writes to `runs/trace.log` | standard library only | 3 |
 | `state.py` | Shared graph state (typed) | `tools` (for `Paper`) | 4 to 6 |
 | `nodes/search.py` | Graph node that calls the PubMed tool | `tools`, `state`, `observability` | 6 |
@@ -32,6 +32,7 @@ audit/run_log.py ──▶ runs/<run-id>.json (on disk, gitignored)
 | `nodes/citation_check.py` | Graph node: verifies every claim | `state`, `observability` | 5 |
 | `audit/run_log.py` | Writes one audit record per run | `state`, `observability` | 6 |
 | `graph.py` | Connects the nodes (LangGraph) | `nodes`, `state`, `audit` | 6 |
+| `scripts/demo_run.py` | Stop-gap demo: real search + summary → `runs/demo_<UTC>.json` (paid, needs `--yes`). Replaced by Stage 6 | `tools`, `nodes.summarise`, `observability` | demo |
 
 **Rules**
 
