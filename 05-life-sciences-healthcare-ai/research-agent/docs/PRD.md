@@ -1,6 +1,6 @@
 # Research Agent: PRD
 
-Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stages 6 and 7: not yet specified.
+Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09**. Stage 7: not yet specified.
 
 ## Goal
 
@@ -22,7 +22,7 @@ approved by the user before it is built.
 | 3r | Stage 3 revision: relevance sort (K1), authors, DOI | ✅ Section below, APPROVED |
 | 4 | Summarise step | ✅ Section below, APPROVED |
 | 5 | Citation check step | ✅ Section below, APPROVED |
-| 6 | Graph, audit log, first run | ⬜ Section to be added before build |
+| 6 | Graph, audit log, first run | ✅ Section below, APPROVED |
 | 7 | Tracing with Langfuse or LangSmith | ⬜ Section to be added before build |
 
 ---
@@ -492,6 +492,151 @@ Test-only hook: `check_citations(..., llm=...)` takes the fake model.
 - `ruff check`, `ruff format --check` and `mypy --strict` are clean
 - `.env.example` has `ANTHROPIC_CHECK_MODEL`; `ARCHITECTURE.md` and `PROGRESS.md` updated; committed
 - Paid live test run once, with the user's OK
+
+## Stage 6: Graph, audit log, first run
+
+Status: **APPROVED by user 2026-11-09** (G-Q1 to G-Q6 all as recommended).
+
+### What it does
+
+Connects the three steps into one LangGraph graph: **search → summarise → check**. One command
+runs it for a query, writes **one audit record** (JSON) per run, and prints the result. Replaces
+the demo script.
+
+```
+python -m research_agent "<query>" --yes     # from the research-agent folder
+```
+
+### Interface
+
+```python
+# research_agent/state.py (graph state added)
+class GraphState(TypedDict, total=False):
+    query: str
+    max_results: int
+    search: SearchResult
+    summary: Summary
+    checked: CheckedSummary
+
+# research_agent/nodes/search.py
+search_node(state: GraphState, *, client: httpx.Client | None = None) -> GraphState      # {"search": ...}
+# research_agent/nodes/summarise.py (added)
+summarise_node(state: GraphState, *, llm: Runnable | None = None) -> GraphState          # {"summary": ...}
+# research_agent/nodes/citation_check.py (added)
+check_node(state: GraphState, *, llm: Runnable | None = None) -> GraphState              # {"checked": ...}
+
+# research_agent/audit/run_log.py
+format_citation(paper: Paper) -> str
+new_run_id(now: datetime) -> str
+build_audit_record(*, run_id: str, created_at: datetime, finished_at: datetime,
+                   state: GraphState, error: tuple[str, BaseException] | None) -> dict[str, Any]
+write_audit_record(record: dict[str, Any], runs_dir: Path) -> Path   # runs_dir/<run_id>.json
+
+# research_agent/graph.py
+build_graph(*, client=None, summarise_llm=None, check_llm=None) -> CompiledStateGraph
+run(query: str, *, max_results: int = RUN_MAX_RESULTS, runs_dir: Path = Path("runs"),
+    client=None, summarise_llm=None, check_llm=None) -> RunOutcome    # (path, status, checked | None)
+
+# research_agent/__main__.py
+main(argv: list[str] | None = None, *, client=None, summarise_llm=None, check_llm=None,
+     runs_dir: Path = Path("runs")) -> int
+```
+
+`client`, `summarise_llm`, `check_llm` and `runs_dir` are test hooks, passed to the nodes with
+`functools.partial` in `build_graph`. Leave them out in normal use.
+
+### How it works
+
+1. `__main__` checks `--yes` (G1), loads `.env`, calls `run(query)`.
+2. `run` builds the graph and streams it (`stream_mode="values"`), keeping the latest state after each step.
+3. Graph: `START → search → summarise → check → END`. No branches: Stage 4 already skips the model when there are no abstracts (S3), and Stage 5 when there are no claims (C2).
+4. After the graph ends **or fails**, `run` writes the audit record (G5, G6), then returns, or re-raises the error.
+5. `__main__` prints the result (G-Q2) and returns `0`. On error nothing catches it: the traceback shows and Python exits `1` (fail loud).
+
+### Rules
+
+| # | Rule |
+|---|---|
+| G1 | **Spend guard** (as D2): without `--yes`, print that it calls the paid API, exit `2`, make **no** PubMed or model call, write no file. |
+| G2 | `.env` is loaded only in `__main__` when run as a program, never in `run()` or nodes (as D6, Stage 3 note). |
+| G3 | Max model calls per run: 1 summarise + at most `MAX_CLAIMS` (20) checks = **21**. `RUN_MAX_RESULTS = 5` (module constant). |
+| G4 | Nodes only read state and return their own key. A node never imports another node; shared types come from `state.py`. |
+| G5 | **One audit record per run**, `runs/<run_id>.json`. `run_id` = `<YYYYMMDDTHHMMSSZ>_<8 hex>` (UTC + random, so two runs in one second never clash). Never overwrite (`open("x")`, fail loud). `runs/` is gitignored. |
+| G6 | **Failed runs are recorded too.** If a step raises, the record has `status: "error"`, the failed step's name, the error **class name only** (never the message: an httpx error can contain the URL with `api_key`), and everything finished before it (so a paid summary is not lost). Then the error is re-raised (fail loud). |
+| G7 | Record contents (built with `asdict()`, as D4): see table below. Includes each paper's `authors`, `doi`, `title` in full (R14). |
+| G8 | `format_citation` (Stage 3r hand-on, Q7). Parts joined by one space: authors part, title as given, `<journal>.`, `<year>.` (left out if no year), url, `doi:<doi>` (left out if no DOI). Authors part: up to 3 → `A, B, C.`; more than 3 → `A, B, C, et al.`; none → left out. Example: `Smith J, Lee K, Chan M, et al. Drug X trial. Test Journal. 2021. https://pubmed.ncbi.nlm.nih.gov/111/ doi:10.1000/xyz` |
+| G9 | Application logs: counts and step names only. Never abstracts, claims, quotes, explanations, citations, prompts, replies or keys (S9, C13). |
+| G10 | Every function uses `@traced`. |
+| G11 | No checkpointer, no retries at graph level (each step already has its own), no parallel steps. |
+
+| Record key | Content |
+|---|---|
+| `run_id`, `created_at`, `finished_at` | As G5; UTC ISO 8601 |
+| `status` | `"ok"` or `"error"` |
+| `error` | `null`, or `{"step": "search" \| "summarise" \| "check", "type": "<ClassName>"}` |
+| `query`, `max_results` | Input |
+| `models` | `{"summarise": ANTHROPIC_MODEL, "check": ANTHROPIC_CHECK_MODEL}` (`null` if that step did not run) |
+| `search` | `asdict(SearchResult)` or `null` |
+| `citations` | `{pmid: format_citation(paper)}` for every paper found |
+| `summary` | `asdict(Summary)` or `null` |
+| `check` | `asdict(CheckedSummary)` without its copy of `summary` (no duplicate), or `null` |
+| `counts` | papers, skipped, claims, rejected, verified, failed |
+
+### Tests (written first, all failing before the code exists)
+
+Fake NCBI client + two fake models (as Stages 3 to 5). **No paid calls.**
+
+| Test | Checks |
+|---|---|
+| no `--yes` | exit 2, no NCBI request, no model call, no file (G1) |
+| happy path | one record, `status: "ok"`, search + summary + check filled, counts right, exit 0 |
+| step order | search, then summarise, then check; each fake called with the previous step's output |
+| no abstracts | summarise model and check model never called; record `ok` with empty claims (S3, C2) |
+| no claims | check model never called (C2) |
+| error in summarise | record `status: "error"`, step `summarise`, type `SummariseError`, `search` kept, `summary` null; error re-raised (G6) |
+| error in check | step `check`, `summary` kept (G6) |
+| error message not saved | an error whose message holds `api_key=SECRET` → `SECRET` not in the file (G6) |
+| record contents | keys as the table; authors, doi, title present (G7, R14); `check` has no duplicate `summary` |
+| run_id | format `<stamp>_<8 hex>`; two runs in the same second → two files (G5) |
+| no overwrite | existing file name → `FileExistsError` (G5) |
+| creates `runs/` | missing folder is created |
+| citation: ≤ 3 authors | no "et al." (G8) |
+| citation: > 3 authors | first 3 + "et al." (G8) |
+| citation: DOI / no DOI / no authors / no year | each format as G8 |
+| state passing | each node returns only its own key (G4) |
+| nothing secret logged | log text has no abstract, claim, quote or citation (G9) |
+| demo retired | (if G-Q4 yes) `scripts/demo_run.py` and its tests removed |
+
+Plus one **paid live test** (`live_paid`, user OK each run, G-Q5): real PubMed + real models, fixed query, `max_results=2`; asserts a record with `status: "ok"` is written. `live_paid` tests now also load the real NCBI settings (conftest).
+
+### Open questions (settled 2026-11-09: all as recommended)
+
+| # | Question | Recommendation |
+|---|---|---|
+| G-Q1 | **Entry point:** `python -m research_agent "<query>" --yes` (new `research_agent/__main__.py`)? | **Yes.** Standard Python; ARCHITECTURE gets a new row. |
+| G-Q2 | **What to print:** path + counts only (like the demo), or also the **verified claims with their citations**? Failed claims shown as a count, full detail in the audit file. | **Print verified claims + citations.** It is the answer the user ran it for. Logs still stay counts-only (G9). |
+| G-Q3 | **Record failed runs** (G6): write a record with the failed step and error class, then re-raise? | **Yes.** An audit log that skips failures is not an audit log. |
+| G-Q4 | **Retire the demo script** (`scripts/demo_run.py` + `tests/test_demo_run.py`), and drop the C-Q4 demo extension? Stage 6 does the same job. | **Yes, retire both.** Deleting tests is a removed feature, not a test edit to pass. |
+| G-Q5 | **Paid live test:** one end-to-end run, fixed query, `max_results=2` (about 1 + 2 to 8 calls)? Asserts a record is written with `status: "ok"`, not what the claims say. | **Yes, one test**, user OK each run. |
+| G-Q6 | `check` record without the duplicate `summary` copy (G7)? | **Yes.** Same data once, smaller file. |
+
+### Out of scope for Stage 6
+
+- Tracing with Langfuse or LangSmith (Stage 7)
+- Checkpoints, resume, human-in-the-loop, parallel steps, retry at graph level
+- Relevance to the query (Q4), a web UI, a `--max-results` option
+
+### Done when
+
+- All tests pass; `ruff check`, `ruff format --check`, `mypy --strict` clean
+- `ARCHITECTURE.md` (entry point row, `audit` imports `tools` types) and `PROGRESS.md` updated; committed
+- Paid live test run once, with the user's OK; first real audit record shown to the user
+
+### Checked against current docs (Context7, 2026-11-09)
+
+LangGraph `1.2.19` installed. `StateGraph(<TypedDict>)`, nodes return partial state updates,
+`add_edge(START, ...)`, `compile()`; `stream(..., stream_mode="values")` yields the full state
+after each step.
 
 ---
 

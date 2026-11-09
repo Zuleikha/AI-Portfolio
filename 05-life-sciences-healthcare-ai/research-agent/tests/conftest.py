@@ -50,5 +50,6 @@ def clean_env(
     if request.node.get_closest_marker("live"):
         _load_real(monkeypatch, NCBI_SETTINGS)
     if request.node.get_closest_marker("live_paid"):
-        _load_real(monkeypatch, ANTHROPIC_SETTINGS)
+        # Stage 6 end-to-end test also searches real PubMed (free).
+        _load_real(monkeypatch, NCBI_SETTINGS + ANTHROPIC_SETTINGS)
     return trace_log
