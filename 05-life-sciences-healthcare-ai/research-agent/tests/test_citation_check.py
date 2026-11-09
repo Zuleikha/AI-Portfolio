@@ -262,6 +262,20 @@ def test_thousands_comma_is_ignored() -> None:  # C8
     assert len(checked.verified) == 1
 
 
+def test_type_2_counts_as_a_number() -> None:  # C8
+    abstract = "Metformin is the first-line drug for diabetes in adults."
+    result = search_result(paper("111", abstract))
+    checked = check_one(
+        "Metformin is the first-line drug for type 2 diabetes.",
+        ["111"],
+        check_reply("supported", ("111", abstract)),
+        result,
+    )
+
+    assert checked.verified == []
+    assert checked.failed[0].reasons == ["number missing: 2"]
+
+
 @pytest.mark.parametrize(
     ("abstract", "claim", "reasons"),
     [
