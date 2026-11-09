@@ -26,7 +26,26 @@ Generated from the real graph by `scripts/draw_graph.py` (PRD G13). Do not edit 
 test fails if this block differs from `build_graph().get_graph().draw_mermaid()`.
 
 <!-- graph:start -->
-(not generated yet: Stage 6 not built)
+```mermaid
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	search(search)
+	summarise(summarise)
+	check(check)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> search;
+	search --> summarise;
+	summarise --> check;
+	check --> __end__;
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
+```
 <!-- graph:end -->
 
 ## Modules and scope
@@ -44,7 +63,6 @@ test fails if this block differs from `build_graph().get_graph().draw_mermaid()`
 | `graph.py` | Connects the nodes (LangGraph) | `nodes`, `state`, `audit` | 6 |
 | `__main__.py` | Entry point: `python -m research_agent "<query>" --yes`; spend guard, loads `.env`, prints verified claims + citations | `graph`, `audit`, `observability` | 6 |
 | `scripts/draw_graph.py` | Writes the Mermaid diagram of the real graph into this file, between the markers | `graph`, `observability` | 6 |
-| `scripts/demo_run.py` | Stop-gap demo: real search + summary → `runs/demo_<UTC>.json` (paid, needs `--yes`). Replaced by Stage 6 | `tools`, `nodes.summarise`, `observability` | demo |
 
 **Rules**
 

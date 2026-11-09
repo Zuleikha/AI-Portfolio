@@ -21,6 +21,7 @@ from research_agent.llm_common import build_chat_model as _build_chat_model
 from research_agent.llm_common import neutralise, require_env
 from research_agent.observability import traced
 from research_agent.state import Claim as Claim  # re-exported (public types)
+from research_agent.state import GraphState
 from research_agent.state import RejectedClaim as RejectedClaim
 from research_agent.state import SkippedPaper as SkippedPaper
 from research_agent.state import Summary as Summary
@@ -193,3 +194,12 @@ def summarise(result: SearchResult, *, llm: Runnable[Any, Any] | None = None) ->
         rejected=rejected,
         model=model_id,
     )
+
+
+# ---------------------------------------------------------------- graph node (Stage 6)
+
+
+@traced
+def summarise_node(state: GraphState, *, llm: Runnable[Any, Any] | None = None) -> GraphState:
+    """Graph node: reads ``search``, returns only ``summary`` (G4). ``llm``: test hook."""
+    return {"summary": summarise(state["search"], llm=llm)}

@@ -660,7 +660,7 @@ present in the installed version).
 
 ## Demo script: real search + real summary (supports Stage 5)
 
-Status: **APPROVED by user 2026-11-06** (plan agreed in chat; build on that basis).
+Status: **APPROVED by user 2026-11-06** (plan agreed in chat; build on that basis). **Retired 2026-11-09** (Stage 6, G-Q4): script and tests removed; `python -m research_agent` replaces it. Kept here as history.
 
 ### Why
 

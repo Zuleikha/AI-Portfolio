@@ -27,8 +27,8 @@ from research_agent.llm_common import neutralise, require_env
 from research_agent.observability import traced
 from research_agent.state import CheckedSummary as CheckedSummary  # re-exported (public types)
 from research_agent.state import FailedClaim as FailedClaim
+from research_agent.state import GraphState, Summary
 from research_agent.state import Quote as Quote
-from research_agent.state import Summary
 from research_agent.state import VerifiedClaim as VerifiedClaim
 from research_agent.tools.pubmed import Paper, SearchResult
 
@@ -280,3 +280,12 @@ def check_citations(
         summary=summary,
         check_model=model_id,
     )
+
+
+# ---------------------------------------------------------------- graph node (Stage 6)
+
+
+@traced
+def check_node(state: GraphState, *, llm: Runnable[Any, Any] | None = None) -> GraphState:
+    """Graph node: reads ``summary`` and ``search``, returns only ``checked`` (G4)."""
+    return {"checked": check_citations(state["summary"], state["search"], llm=llm)}
