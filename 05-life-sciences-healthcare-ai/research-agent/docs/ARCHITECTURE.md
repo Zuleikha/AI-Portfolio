@@ -1,6 +1,6 @@
 # Research Agent: Architecture
 
-Status: **DRAFT** (2026-11-04). Spec: `docs/PRD.md`.
+Status: **DRAFT** (updated 2026-11-09 for the Stage 6 draft). Spec: `docs/PRD.md`.
 
 ## Flow
 
@@ -20,6 +20,15 @@ query
 audit/run_log.py ──▶ runs/<run-id>.json (on disk, gitignored)
 ```
 
+### Graph (generated)
+
+Generated from the real graph by `scripts/draw_graph.py` (PRD G13). Do not edit by hand: a
+test fails if this block differs from `build_graph().get_graph().draw_mermaid()`.
+
+<!-- graph:start -->
+(not generated yet: Stage 6 not built)
+<!-- graph:end -->
+
 ## Modules and scope
 
 | Module | Job | May import | Stage |
@@ -31,8 +40,10 @@ audit/run_log.py ──▶ runs/<run-id>.json (on disk, gitignored)
 | `llm_common.py` | Shared Claude helpers: env settings, chat model builder, tag neutraliser | `observability` only | 5 (C-Q1) |
 | `nodes/summarise.py` | Graph node: summary with PMID citations | `state`, `llm_common`, `observability`; `tools` (types: `Paper`, `SearchResult`) | 4 |
 | `nodes/citation_check.py` | Graph node: verifies every claim (model verdict + quote and number checks) | `state`, `llm_common`, `observability`; `tools` (types: `Paper`, `SearchResult`) | 5 |
-| `audit/run_log.py` | Writes one audit record per run | `state`, `observability` | 6 |
+| `audit/run_log.py` | Writes one audit record per run; citation strings; injection-phrase scan (G12) | `state`, `observability`; `tools` (type: `Paper`) | 6 |
 | `graph.py` | Connects the nodes (LangGraph) | `nodes`, `state`, `audit` | 6 |
+| `__main__.py` | Entry point: `python -m research_agent "<query>" --yes`; spend guard, loads `.env`, prints verified claims + citations | `graph`, `audit`, `observability` | 6 |
+| `scripts/draw_graph.py` | Writes the Mermaid diagram of the real graph into this file, between the markers | `graph`, `observability` | 6 |
 | `scripts/demo_run.py` | Stop-gap demo: real search + summary → `runs/demo_<UTC>.json` (paid, needs `--yes`). Replaced by Stage 6 | `tools`, `nodes.summarise`, `observability` | demo |
 
 **Rules**

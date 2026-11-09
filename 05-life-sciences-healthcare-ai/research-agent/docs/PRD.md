@@ -1,6 +1,6 @@
 # Research Agent: PRD
 
-Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09**. Stage 7: not yet specified.
+Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09** (revised spec). Stage 7: not yet specified.
 
 ## Goal
 
@@ -22,7 +22,7 @@ approved by the user before it is built.
 | 3r | Stage 3 revision: relevance sort (K1), authors, DOI | ✅ Section below, APPROVED |
 | 4 | Summarise step | ✅ Section below, APPROVED |
 | 5 | Citation check step | ✅ Section below, APPROVED |
-| 6 | Graph, audit log, first run | ✅ Section below, APPROVED |
+| 6 | Graph, audit log, first run | Section below, APPROVED |
 | 7 | Tracing with Langfuse or LangSmith | ⬜ Section to be added before build |
 
 ---
@@ -495,7 +495,7 @@ Test-only hook: `check_citations(..., llm=...)` takes the fake model.
 
 ## Stage 6: Graph, audit log, first run
 
-Status: **APPROVED by user 2026-11-09** (G-Q1 to G-Q6 all as recommended).
+Status: **APPROVED by user 2026-11-09** (revised spec: G1 to G13; G-Q1 to G-Q6 as recommended).
 
 ### What it does
 
@@ -531,6 +531,8 @@ new_run_id(now: datetime) -> str
 build_audit_record(*, run_id: str, created_at: datetime, finished_at: datetime,
                    state: GraphState, error: tuple[str, BaseException] | None) -> dict[str, Any]
 write_audit_record(record: dict[str, Any], runs_dir: Path) -> Path   # runs_dir/<run_id>.json
+find_injection_warnings(papers: list[Paper]) -> list[dict[str, str]]  # [{pmid, phrase}] (G12)
+INJECTION_PHRASES: tuple[str, ...]                                     # module constant (G12)
 
 # research_agent/graph.py
 build_graph(*, client=None, summarise_llm=None, check_llm=None) -> CompiledStateGraph
@@ -540,6 +542,9 @@ run(query: str, *, max_results: int = RUN_MAX_RESULTS, runs_dir: Path = Path("ru
 # research_agent/__main__.py
 main(argv: list[str] | None = None, *, client=None, summarise_llm=None, check_llm=None,
      runs_dir: Path = Path("runs")) -> int
+
+# scripts/draw_graph.py (G13)
+main() -> int   # writes build_graph().get_graph().draw_mermaid() into docs/ARCHITECTURE.md
 ```
 
 `client`, `summarise_llm`, `check_llm` and `runs_dir` are test hooks, passed to the nodes with
@@ -550,7 +555,7 @@ main(argv: list[str] | None = None, *, client=None, summarise_llm=None, check_ll
 1. `__main__` checks `--yes` (G1), loads `.env`, calls `run(query)`.
 2. `run` builds the graph and streams it (`stream_mode="values"`), keeping the latest state after each step.
 3. Graph: `START → search → summarise → check → END`. No branches: Stage 4 already skips the model when there are no abstracts (S3), and Stage 5 when there are no claims (C2).
-4. After the graph ends **or fails**, `run` writes the audit record (G5, G6), then returns, or re-raises the error.
+4. After the graph ends **or fails**, `run` scans the papers for injection phrases (G12), writes the audit record (G5, G6), then returns, or re-raises the error.
 5. `__main__` prints the result (G-Q2) and returns `0`. On error nothing catches it: the traceback shows and Python exits `1` (fail loud).
 
 ### Rules
@@ -561,13 +566,15 @@ main(argv: list[str] | None = None, *, client=None, summarise_llm=None, check_ll
 | G2 | `.env` is loaded only in `__main__` when run as a program, never in `run()` or nodes (as D6, Stage 3 note). |
 | G3 | Max model calls per run: 1 summarise + at most `MAX_CLAIMS` (20) checks = **21**. `RUN_MAX_RESULTS = 5` (module constant). |
 | G4 | Nodes only read state and return their own key. A node never imports another node; shared types come from `state.py`. |
-| G5 | **One audit record per run**, `runs/<run_id>.json`. `run_id` = `<YYYYMMDDTHHMMSSZ>_<8 hex>` (UTC + random, so two runs in one second never clash). Never overwrite (`open("x")`, fail loud). `runs/` is gitignored. |
-| G6 | **Failed runs are recorded too.** If a step raises, the record has `status: "error"`, the failed step's name, the error **class name only** (never the message: an httpx error can contain the URL with `api_key`), and everything finished before it (so a paid summary is not lost). Then the error is re-raised (fail loud). |
+| G5 | **One audit record per run**, `runs/<run_id>.json`. `run_id` = `<YYYYMMDDTHHMMSSZ>_<8 hex>` (UTC + random, so two runs in one second never clash). `write_audit_record` creates `runs/` if missing. Never overwrite (`open("x")`, fail loud). `runs/` is gitignored. |
+| G6 | **Failed runs are recorded too.** If a step raises, the record has `status: "error"`, the failed step's name, the error **class name only** (never the message: an httpx error can contain the URL with `api_key`), and everything finished before it (so a paid summary is not lost). Then the error is re-raised (fail loud). If **writing the record** fails during an error run, the **original step error** is raised (the write failure is logged by class name only); it is never replaced by the write error. |
 | G7 | Record contents (built with `asdict()`, as D4): see table below. Includes each paper's `authors`, `doi`, `title` in full (R14). |
 | G8 | `format_citation` (Stage 3r hand-on, Q7). Parts joined by one space: authors part, title as given, `<journal>.`, `<year>.` (left out if no year), url, `doi:<doi>` (left out if no DOI). Authors part: up to 3 → `A, B, C.`; more than 3 → `A, B, C, et al.`; none → left out. Example: `Smith J, Lee K, Chan M, et al. Drug X trial. Test Journal. 2021. https://pubmed.ncbi.nlm.nih.gov/111/ doi:10.1000/xyz` |
 | G9 | Application logs: counts and step names only. Never abstracts, claims, quotes, explanations, citations, prompts, replies or keys (S9, C13). |
 | G10 | Every function uses `@traced`. |
 | G11 | No checkpointer, no retries at graph level (each step already has its own), no parallel steps. |
+| G12 | **Injection flag: warn, don't block** (user decision). Each paper's title and abstract is scanned for the phrases in `INJECTION_PHRASES` (module constant, e.g. `"ignore previous instructions"`), case ignored, whitespace collapsed. Each hit is one entry `{pmid, phrase}` (once per paper and phrase, in paper order) in the record key `injection_warnings`. The run carries on as normal: the model is still called (S12 and C12 tags remain the defence). Logs show the **count only** (`injection warnings: <n>`), never the text (G9). |
+| G13 | **Graph diagram.** `scripts/draw_graph.py` builds the graph with `build_graph()` and writes `get_graph().draw_mermaid()` into `docs/ARCHITECTURE.md` as a ```` ```mermaid ```` block between `<!-- graph:start -->` and `<!-- graph:end -->`. Text outside the markers is never changed. Diagrams live in `ARCHITECTURE.md` only. A test fails if the block differs from the real graph (drift check). |
 
 | Record key | Content |
 |---|---|
@@ -581,6 +588,7 @@ main(argv: list[str] | None = None, *, client=None, summarise_llm=None, check_ll
 | `summary` | `asdict(Summary)` or `null` |
 | `check` | `asdict(CheckedSummary)` without its copy of `summary` (no duplicate), or `null` |
 | `counts` | papers, skipped, claims, rejected, verified, failed |
+| `injection_warnings` | `[{"pmid": ..., "phrase": ...}]`, empty list if none or no search (G12) |
 
 ### Tests (written first, all failing before the code exists)
 
@@ -589,12 +597,15 @@ Fake NCBI client + two fake models (as Stages 3 to 5). **No paid calls.**
 | Test | Checks |
 |---|---|
 | no `--yes` | exit 2, no NCBI request, no model call, no file (G1) |
+| main prints verified claims with citations | stdout has the record path, each verified claim and its citation; failed claims as a count only (G-Q2) |
 | happy path | one record, `status: "ok"`, search + summary + check filled, counts right, exit 0 |
 | step order | search, then summarise, then check; each fake called with the previous step's output |
 | no abstracts | summarise model and check model never called; record `ok` with empty claims (S3, C2) |
 | no claims | check model never called (C2) |
 | error in summarise | record `status: "error"`, step `summarise`, type `SummariseError`, `search` kept, `summary` null; error re-raised (G6) |
 | error in check | step `check`, `summary` kept (G6) |
+| error in search | NCBI 400 → step `search`, type `PubMedError`, `search` null; error re-raised (G6) |
+| record write fails in error run | summarise raises and writing the record raises `OSError` → `SummariseError` is raised, not `OSError` (G6) |
 | error message not saved | an error whose message holds `api_key=SECRET` → `SECRET` not in the file (G6) |
 | record contents | keys as the table; authors, doi, title present (G7, R14); `check` has no duplicate `summary` |
 | run_id | format `<stamp>_<8 hex>`; two runs in the same second → two files (G5) |
@@ -605,7 +616,11 @@ Fake NCBI client + two fake models (as Stages 3 to 5). **No paid calls.**
 | citation: DOI / no DOI / no authors / no year | each format as G8 |
 | state passing | each node returns only its own key (G4) |
 | nothing secret logged | log text has no abstract, claim, quote or citation (G9) |
-| demo retired | (if G-Q4 yes) `scripts/demo_run.py` and its tests removed |
+| injection flagged, run continues | abstract with "Ignore previous instructions" → one warning `{pmid, phrase}`; summarise model still called; `status: "ok"` (G12) |
+| clean run, no warnings | `injection_warnings == []` (G12) |
+| injection count logged, not text | log has `injection warnings: 1`, not the abstract text (G9, G12) |
+| diagram matches graph | the Mermaid block in `ARCHITECTURE.md` equals `build_graph().get_graph().draw_mermaid()` (G13) |
+| demo retired | `scripts/demo_run.py` and `tests/test_demo_run.py` removed (G-Q4) |
 
 Plus one **paid live test** (`live_paid`, user OK each run, G-Q5): real PubMed + real models, fixed query, `max_results=2`; asserts a record with `status: "ok"` is written. `live_paid` tests now also load the real NCBI settings (conftest).
 
@@ -617,7 +632,7 @@ Plus one **paid live test** (`live_paid`, user OK each run, G-Q5): real PubMed +
 | G-Q2 | **What to print:** path + counts only (like the demo), or also the **verified claims with their citations**? Failed claims shown as a count, full detail in the audit file. | **Print verified claims + citations.** It is the answer the user ran it for. Logs still stay counts-only (G9). |
 | G-Q3 | **Record failed runs** (G6): write a record with the failed step and error class, then re-raise? | **Yes.** An audit log that skips failures is not an audit log. |
 | G-Q4 | **Retire the demo script** (`scripts/demo_run.py` + `tests/test_demo_run.py`), and drop the C-Q4 demo extension? Stage 6 does the same job. | **Yes, retire both.** Deleting tests is a removed feature, not a test edit to pass. |
-| G-Q5 | **Paid live test:** one end-to-end run, fixed query, `max_results=2` (about 1 + 2 to 8 calls)? Asserts a record is written with `status: "ok"`, not what the claims say. | **Yes, one test**, user OK each run. |
+| G-Q5 | **Paid live test:** one end-to-end run, fixed query, `max_results=2` (up to 21 calls, G3)? Asserts a record is written with `status: "ok"`, not what the claims say. | **Yes, one test**, user OK each run. |
 | G-Q6 | `check` record without the duplicate `summary` copy (G7)? | **Yes.** Same data once, smaller file. |
 
 ### Out of scope for Stage 6
@@ -629,14 +644,17 @@ Plus one **paid live test** (`live_paid`, user OK each run, G-Q5): real PubMed +
 ### Done when
 
 - All tests pass; `ruff check`, `ruff format --check`, `mypy --strict` clean
-- `ARCHITECTURE.md` (entry point row, `audit` imports `tools` types) and `PROGRESS.md` updated; committed
+- `ARCHITECTURE.md` (rows for `__main__.py` and `scripts/draw_graph.py`, `audit` imports `tools` types) and `PROGRESS.md` updated; committed
 - Paid live test run once, with the user's OK; first real audit record shown to the user
+- Mermaid diagram generated into `ARCHITECTURE.md` (G13)
+- Screen recording of one run added to the repo (tool to be decided)
 
 ### Checked against current docs (Context7, 2026-11-09)
 
 LangGraph `1.2.19` installed. `StateGraph(<TypedDict>)`, nodes return partial state updates,
 `add_edge(START, ...)`, `compile()`; `stream(..., stream_mode="values")` yields the full state
-after each step.
+after each step. Mermaid text: `compiled.get_graph().draw_mermaid()` (returns a string; confirmed
+present in the installed version).
 
 ---
 
