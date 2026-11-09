@@ -1,6 +1,6 @@
 # Research Agent: PRD
 
-Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09** (revised spec). Stage 7: not yet specified.
+Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09** (revised spec). Stage 5 revision (K2, K3) **APPROVED by user 2026-11-09**. Stage 7: not yet specified.
 
 ## Goal
 
@@ -22,6 +22,7 @@ approved by the user before it is built.
 | 3r | Stage 3 revision: relevance sort (K1), authors, DOI | ✅ Section below, APPROVED |
 | 4 | Summarise step | ✅ Section below, APPROVED |
 | 5 | Citation check step | ✅ Section below, APPROVED |
+| 5r | Stage 5 revision: C8 number fixes (K2, K3) | Section below, APPROVED |
 | 6 | Graph, audit log, first run | Section below, APPROVED |
 | 7 | Tracing with Langfuse or LangSmith | ⬜ Section to be added before build |
 
@@ -408,7 +409,7 @@ All are frozen dataclasses. Stage 6 takes a `CheckedSummary`.
 | C5 | Verdict `supported` with no quotes → reason `no quote`. |
 | C6 | Each quote's `pmid` must be one the claim cites → else reason `quote from uncited PMID: <id>`, and that quote gets **no** C7 check (rule A, 2026-11-06). |
 | C7 | Each quote must appear in **that** PMID's original abstract after normalising both: Unicode NFKC, all dash types to `-`, whitespace collapsed, case ignored. Else reason `quote not found: <pmid>`. Quotes shorter than `MIN_QUOTE_CHARS` (proposed 20, after normalising) → reason `quote too short: <pmid>` (C-Q3). |
-| C8 | **Numbers** (Q3): every standalone number in the claim must appear as a standalone number in the **good quotes** (joined): only quotes that pass C6 and C7 (cited, found, long enough) count (rule B, 2026-11-06). Standalone = digits not touching a letter, so `B12`, `HbA1c`, `IC50` are ignored; `21.7%`, `69`, `318`, `2` (in "type 2") count. Thousands commas are removed before comparing (`1,000` = `1000`). A decimal is **one** number (`21.7` ≠ `21` + `7`); a full stop ending a sentence is not part of a number (`40.` = `40`) (2026-11-06). Each missing one → reason `number missing: <n>`. False fails are accepted and visible in `failed`. |
+| C8 | **Numbers** (Q3): every standalone number in the claim must appear as a standalone number in the **good quotes** (joined): only quotes that pass C6 and C7 (cited, found, long enough) count (rule B, 2026-11-06). Standalone = digits not touching a letter, so `B12`, `HbA1c`, `IC50` are ignored; `21.7%`, `69`, `318`, `2` (in "type 2") count. Thousands commas are removed before comparing (`1,000` = `1000`). A decimal is **one** number (`21.7` ≠ `21` + `7`); a full stop ending a sentence is not part of a number (`40.` = `40`) (2026-11-06). Each missing one → reason `number missing: <n>`. False fails are accepted and visible in `failed`. **Revised: see "Stage 5 revision" (C8a to C8e, K2, K3).** |
 | C9 | All reasons are collected (not just the first), so the audit log shows everything wrong with a claim. Every code check runs whatever the verdict, including after `not supported` (rule C, 2026-11-06). Order: verdict reason (C4 or C5), then quote reasons in quote order (C6, C7), then number reasons in claim order (C8). |
 | C10 | A reply that does not match the schema, or a model error after retries → `CitationCheckError`; **the whole run stops** (Q5). Nothing is silently dropped. |
 | C11 | Cited PMID not found in `result.papers`, or found with no abstract → `CitationCheckError` (Stage 4 guarantees this cannot happen; if it does, something is broken: fail loud). |
@@ -492,6 +493,74 @@ Test-only hook: `check_citations(..., llm=...)` takes the fake model.
 - `ruff check`, `ruff format --check` and `mypy --strict` are clean
 - `.env.example` has `ANTHROPIC_CHECK_MODEL`; `ARCHITECTURE.md` and `PROGRESS.md` updated; committed
 - Paid live test run once, with the user's OK
+
+## Stage 5 revision: C8 number fixes (K2, K3)
+
+Status: **APPROVED by user 2026-11-09** (C8-Q1 to C8-Q3 as recommended).
+
+### Why
+
+Stage 6 live run (2026-11-09): 6 claims, the model said "supported" for all 6, but 5 failed C8.
+All 5 were false fails (`PROGRESS.md`, K2 and K3):
+
+- **K2:** *Lancet*-style abstracts write decimals with a middle dot (`0·51`, `43·6`); the claim
+  writes `0.51`, so the numbers did not match (2 claims).
+- **K3:** numbers that are part of a name (`SUSTAIN 11`, `type 2`) counted as numbers; quotes
+  rarely repeat them (3 claims).
+
+### Rules (change C8; nothing else in Stage 5 changes)
+
+| # | Rule |
+|---|---|
+| C8a | **Middle dot (K2).** When reading numbers (claim and quotes), a middle dot `·` (U+00B7) between two digits is read as a decimal point: `0·51` = `0.51`. Nothing else changes (C7 quote matching already compares like with like). |
+| C8b | **Label numbers (K3).** A *label number* is a whole number (no decimal part, no thousands comma, not followed by `%`) that comes right after: the word `type` or `phase` (case ignored), or an all-caps word of **at least 4 letters** (e.g. `SUSTAIN 11`, `UKPDS 33`). The word and number are joined by one space or one hyphen (`type 2`, `type-2`). |
+| C8c | A label number **passes if its label phrase** (word + number, e.g. `SUSTAIN 11`, `type 2`) appears in the **title or abstract** of a paper the claim cites. Case ignored; a space or a hyphen between word and number both match. It does not have to be in the quotes. If not found → reason `number missing: <n>` (same text as now). |
+| C8d | **Measurement numbers** (every number that is not a label number, e.g. `21.7`, `400`, `0.51`, `30` in `BMI 30`) must still be in the good quotes. No change from C8. |
+| C8e | Each occurrence is judged on its own. If the same number is a label in one place and a measurement in another, the measurement occurrence still needs the quotes. **Label numbers in the quotes are not evidence for a measurement** (`type 2` in a quote does not prove `lost 2 kg`). Reasons stay one per distinct number, in claim order (C9). |
+
+Why the guards in C8b (live record, 2026-11-09): an all-caps rule with no limits also matched
+`CI 0·45` and `IQR 15·3`, which are measurements. Whole numbers only + at least 4 letters keeps
+`HR`, `CI`, `IQR`, `BMI`, `LDL` measurements under the quote check.
+
+### Tests (written first, failing before the code changes)
+
+| Test | Checks |
+|---|---|
+| middle dot in quote | claim `hazard ratio 0.51`, quote `hazard ratio 0·51 (95% CI ...)` → verified (C8a) |
+| middle dot in claim | claim `43·6%`, quote `43.6%` → verified (C8a) |
+| trial name label | claim "In SUSTAIN 11, ... by 1.5% points", abstract has `SUSTAIN 11`, quote has `1.5%` but not `11` → verified (C8b, C8c) |
+| type label in abstract | claim "... type 2 diabetes ... 40 adults", abstract has `type 2 diabetes`, quote has `40` only → verified (C8c) |
+| hyphen label | claim `type 2`, abstract has `type-2` → verified (C8b, C8c) |
+| phase label in title | claim "In a phase 3 trial, ...", `phase 3` only in the **title** → verified (C8c) |
+| label not in cited paper | claim `SUSTAIN 11`, phrase only in an **uncited** paper → `number missing: 11` (C8c) |
+| short caps word is not a label | claim `BMI 30`, abstract has `BMI 30`, quote lacks `30` → `number missing: 30` (C8b, C8d) |
+| decimal after caps word is not a label | claim `HR 0.51`, quote lacks `0.51` → `number missing: 0.51` (C8b, C8d) |
+| same number as label and measurement | claim "type 2 ... lost 2 kg", abstract has `type 2`, quote has `type 2` but not `2 kg` → `number missing: 2` once (C8e). Passes today by accident (the label's `2` counts) |
+| guards already green | `label only in uncited paper`, `short caps word`, `decimal after caps word` pass today and must still pass after the fix (they stop C8b/C8c being too loose) |
+| `c993ef6` unchanged | `test_type_2_counts_as_a_number` still passes **unchanged**: its abstract has no `type 2`, so `number missing: 2` (C8c) |
+
+No paid test change: the Stage 5 and Stage 6 paid tests stay as they are (user OK each run).
+
+### Open questions (settled 2026-11-09: all as recommended)
+
+| # | Question | Recommendation |
+|---|---|---|
+| C8-Q1 | **What must be in the paper:** the whole label phrase (`SUSTAIN 11`), or just the number (`11`) anywhere in the title or abstract? | **The whole phrase.** A bare `11` is in most abstracts (ages, counts), so it would prove nothing. |
+| C8-Q2 | **Guards on labels:** whole numbers only, and all-caps words of at least 4 letters? | **Yes.** Without them `CI 0·45`, `IQR 15·3`, `HR 0.51` skip the quote check (seen in the live record). Known gap: a 2 to 3 letter trial name (e.g. `UK 2`) is not a label and can still false fail. |
+| C8-Q3 | Keep the reason text `number missing: <n>` for labels too, or add a new reason `label missing: <phrase>`? | **Keep `number missing`.** No change to C9 or existing tests (incl. `c993ef6`). |
+
+### Out of scope
+
+- Number words (`twenty-two`), Roman numerals (`phase III`), units
+- Any change to C4 to C7 or C9 to C16
+
+### Done when
+
+- All tests pass (incl. `c993ef6` unchanged); `ruff check`, `ruff format --check`, `mypy --strict` clean
+- `PROGRESS.md` K2 and K3 marked fixed; committed
+- Paid live test re-run only with the user's OK
+
+---
 
 ## Stage 6: Graph, audit log, first run
 

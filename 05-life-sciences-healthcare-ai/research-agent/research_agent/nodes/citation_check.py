@@ -72,6 +72,11 @@ _SPACES = re.compile(r"\s+")
 # Standalone number: not touching a letter or digit (so B12, HbA1c, IC50 are ignored).
 # Thousands commas and one decimal part belong to the number; a sentence's full stop does not.
 _NUMBER = re.compile(r"(?<!\w)(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?(?!\w)")
+# A middle dot between digits is a decimal point: 0·51 = 0.51 (C8a, K2).
+_MIDDLE_DOT = re.compile(r"(?<=\d)\u00b7(?=\d)")
+# Label number (C8b, K3): a whole number right after "type" or "phase" (any case) or an
+# all-caps word of 4+ letters, joined by one space or hyphen. Not a decimal, not a percent.
+_LABEL = re.compile(r"(?<!\w)((?i:type|phase)|[A-Z]{4,})[ -](\d+)(?![\w%]|[.,]\d)")
 
 
 # ---------------------------------------------------------------- errors
@@ -177,10 +182,44 @@ def _normalise(text: str) -> str:
 
 
 @traced
-def _numbers(text: str) -> list[str]:
-    """Standalone numbers in order, thousands commas removed, each once (C8)."""
-    found = (m.replace(",", "") for m in _NUMBER.findall(unicodedata.normalize("NFKC", text)))
-    return list(dict.fromkeys(found))
+def _read_numbers(text: str) -> list[tuple[str, str | None]]:
+    """Every number in order as ``(value, label phrase or None)`` (C8, C8a, C8b).
+
+    Thousands commas removed, middle dot read as a decimal point. The label phrase is
+    lower case with one space, e.g. ``"sustain 11"``; ``None`` means a measurement.
+    """
+    text = _MIDDLE_DOT.sub(".", unicodedata.normalize("NFKC", text))
+    labels = {m.start(2): f"{m.group(1).casefold()} {m.group(2)}" for m in _LABEL.finditer(text)}
+    return [(m.group().replace(",", ""), labels.get(m.start())) for m in _NUMBER.finditer(text)]
+
+
+@traced
+def _label_in_papers(phrase: str, cited: list[Paper]) -> bool:
+    """Is the label phrase in a cited paper's title or abstract? Space or hyphen (C8c)."""
+    word, number = phrase.rsplit(" ", 1)
+    pattern = re.compile(rf"(?<!\w){re.escape(word)}[ -]{number}(?!\w|[.,]\d)")
+    for paper in cited:
+        text = _MIDDLE_DOT.sub(".", _normalise(f"{paper.title} {paper.abstract or ''}"))
+        if pattern.search(text):
+            return True
+    return False
+
+
+@traced
+def _missing_numbers(claim: str, good: list[LLMQuote], cited: list[Paper]) -> list[str]:
+    """Claim numbers not backed up, each once, in claim order (C8, C8c to C8e).
+
+    Label numbers need their phrase in a cited title or abstract; measurements need the
+    number in the good quotes, where label numbers do not count as evidence (C8e).
+    """
+    quoted = _read_numbers(" ".join(q.text for q in good))
+    evidence = {value for value, label in quoted if label is None}
+    missing: list[str] = []
+    for value, label in _read_numbers(claim):
+        ok = _label_in_papers(label, cited) if label else value in evidence
+        if not ok and value not in missing:
+            missing.append(value)
+    return missing
 
 
 @traced
@@ -216,8 +255,7 @@ def _reasons(claim: str, reply: LLMCheck, cited: list[Paper]) -> list[str]:
         reasons.append(REASON_NO_QUOTE)
     quote_reasons, good = _check_quotes(reply.quotes, cited)
     reasons.extend(quote_reasons)
-    evidence = set(_numbers(" ".join(q.text for q in good)))
-    reasons.extend(REASON_NUMBER.format(n=n) for n in _numbers(claim) if n not in evidence)
+    reasons.extend(REASON_NUMBER.format(n=n) for n in _missing_numbers(claim, good, cited))
     return reasons
 
 

@@ -627,6 +627,103 @@ def test_nothing_secret_logged(
         assert secret not in caplog.text
 
 
+# ---------------------------------------------------------------- Stage 5 revision (C8a to C8e)
+
+HR_ABSTRACT = "Combination therapy lowered risk of failure (hazard ratio 0·51 [95% CI 0·45-0·58])"
+SUSTAIN_ABSTRACT = "In SUSTAIN 11, semaglutide lowered HbA1c by 1.5% points over 52 weeks."
+TYPE2_ABSTRACT = "Adults with type 2 diabetes took drug X. " + ABSTRACT_111
+
+
+def verified_texts(checked: CheckedSummary) -> list[str]:
+    return [c.text for c in checked.verified]
+
+
+@pytest.mark.parametrize(
+    ("claim", "abstract"),
+    [
+        ("Combination therapy lowered risk of failure (hazard ratio 0.51).", HR_ABSTRACT),
+        (
+            "Failure occurred in 43·6% of the combination group.",
+            "Failure occurred in 43.6% of the combination group overall.",
+        ),
+    ],
+    ids=["middle-dot-in-quote", "middle-dot-in-claim"],
+)
+def test_middle_dot_is_a_decimal_point(claim: str, abstract: str) -> None:  # C8a, K2
+    result = search_result(paper("111", abstract))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", abstract)), result)
+    assert verified_texts(checked) == [claim]
+
+
+def test_trial_name_label_found_in_abstract() -> None:  # C8b, C8c, K3
+    quote = "semaglutide lowered HbA1c by 1.5% points over 52 weeks"
+    claim = "In SUSTAIN 11, semaglutide lowered HbA1c by 1.5% points over 52 weeks."
+    result = search_result(paper("111", SUSTAIN_ABSTRACT))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert verified_texts(checked) == [claim]
+
+
+def test_type_label_found_in_abstract() -> None:  # C8c, K3
+    quote = "Drug X lowered blood pressure in 40 adults."
+    claim = "In type 2 diabetes, drug X lowered blood pressure in 40 adults."
+    result = search_result(paper("111", TYPE2_ABSTRACT))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert verified_texts(checked) == [claim]
+
+
+def test_hyphen_label_matches() -> None:  # C8b, C8c
+    abstract = "Adults with type-2 diabetes took drug X. " + ABSTRACT_111
+    quote = "Drug X lowered blood pressure in 40 adults."
+    claim = "In type 2 diabetes, drug X lowered blood pressure in 40 adults."
+    result = search_result(paper("111", abstract))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert verified_texts(checked) == [claim]
+
+
+def test_phase_label_found_in_title() -> None:  # C8c
+    quote = "Drug X lowered blood pressure in 40 adults."
+    claim = "In a phase 3 trial, drug X lowered blood pressure in 40 adults."
+    result = search_result(paper("111", ABSTRACT_111, title="A phase 3 trial of drug X"))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert verified_texts(checked) == [claim]
+
+
+def test_label_only_in_uncited_paper_fails() -> None:  # C8c
+    quote = "semaglutide lowered HbA1c by 1.5% points"
+    claim = "In SUSTAIN 11, semaglutide lowered HbA1c by 1.5% points."
+    cited = "Once weekly semaglutide lowered HbA1c by 1.5% points in adults on insulin."
+    result = search_result(paper("111", cited), paper("222", SUSTAIN_ABSTRACT))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert checked.failed[0].reasons == ["number missing: 11"]
+
+
+def test_short_caps_word_is_not_a_label() -> None:  # C8b, C8d
+    abstract = "Adults with a BMI 30 or higher took drug X and lost weight over 52 weeks."
+    quote = "took drug X and lost weight over 52 weeks"
+    claim = "Adults with BMI 30 took drug X and lost weight over 52 weeks."
+    result = search_result(paper("111", abstract))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert checked.failed[0].reasons == ["number missing: 30"]
+
+
+def test_decimal_after_caps_word_is_not_a_label() -> None:  # C8b, C8d
+    abstract = "Drug X reduced the risk of failure in adults (HR 0.51) over five years."
+    quote = "Drug X reduced the risk of failure in adults"
+    claim = "Drug X reduced the risk of failure in adults (HR 0.51)."
+    result = search_result(paper("111", abstract))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert checked.failed[0].reasons == ["number missing: 0.51"]
+
+
+def test_same_number_as_label_and_measurement() -> None:  # C8e
+    abstract = "Adults with type 2 diabetes took drug X for a year and lost 2 kg on average."
+    quote = "Adults with type 2 diabetes took drug X for a year"
+    claim = "Adults with type 2 diabetes took drug X and lost 2 kg."
+    result = search_result(paper("111", abstract))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert checked.failed[0].reasons == ["number missing: 2"]
+
+
 # ---------------------------------------------------------------- live, paid (opt-in)
 
 
