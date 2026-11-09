@@ -1,6 +1,6 @@
 # Research Agent: PRD
 
-Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09** (revised spec). Stage 5 revision (K2, K3) **APPROVED by user 2026-11-09**. Stage 7: not yet specified.
+Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09** (revised spec). Stage 5 revision (K2, K3) **APPROVED by user 2026-11-09**. Stage 7 **APPROVED by user 2026-11-09**.
 
 ## Goal
 
@@ -24,7 +24,7 @@ approved by the user before it is built.
 | 5 | Citation check step | ✅ Section below, APPROVED |
 | 5r | Stage 5 revision: C8 number fixes (K2, K3) | Section below, APPROVED |
 | 6 | Graph, audit log, first run | Section below, APPROVED |
-| 7 | Tracing with Langfuse or LangSmith | ⬜ Section to be added before build |
+| 7 | Tracing with Langfuse or LangSmith | Section below, APPROVED (LangSmith) |
 
 ---
 
@@ -724,6 +724,121 @@ LangGraph `1.2.19` installed. `StateGraph(<TypedDict>)`, nodes return partial st
 `add_edge(START, ...)`, `compile()`; `stream(..., stream_mode="values")` yields the full state
 after each step. Mermaid text: `compiled.get_graph().draw_mermaid()` (returns a string; confirmed
 present in the installed version).
+
+## Stage 7: Tracing
+
+Status: **APPROVED by user 2026-11-09** (T-Q1 to T-Q7 as recommended: LangSmith cloud, `--trace` opt-in).
+
+### What it does
+
+Lets the user **see inside a run** in a tracing UI: each graph step, each Claude call (prompt,
+reply, tokens, time), linked to the run's audit record by `run_id`. Tracing is **off unless asked
+for**, per run.
+
+```
+python -m research_agent "<query>" --yes --trace
+```
+
+The audit record (Stage 6) stays the source of truth on disk. Tracing is a second, optional view.
+`@traced` (`runs/trace.log`, function names only) does not change.
+
+### Tool options (checked with Context7, 2026-11-09)
+
+| | LangSmith (cloud) | Langfuse (self-hosted) | Langfuse (cloud) |
+|---|---|---|---|
+| Install | Nothing new: `langsmith 0.14.17` already installed (comes with LangChain) | New package `langfuse` + Docker stack (web, Postgres, ClickHouse, Redis, MinIO) | New package `langfuse` |
+| Hook into the graph | LangChain tracing, set by env or config | `CallbackHandler` passed in `config={"callbacks": [...]}` | Same as self-hosted |
+| Where data goes | LangSmith servers | **Stays on this machine** (`localhost`) | Langfuse servers (EU, US, Japan regions) |
+| Account | LangSmith account + API key (free sign-up) | None (local admin user) | Langfuse account + keys |
+| Hiding data | `LANGSMITH_HIDE_INPUTS` / `_OUTPUTS`, or a masking function | Masking hook (`mask_otel_spans` preferred) | Same |
+| Also enables | **LangGraph Studio** (needs a LangSmith key) for the screen recording | - | - |
+
+### Interface (shape depends on T-Q1; LangSmith shown)
+
+```python
+# research_agent/tracing.py (new)
+tracing_config(run_id: str, *, enabled: bool) -> RunnableConfig
+    # enabled=False → no tracer, and LangChain auto-tracing switched off for this run
+    # enabled=True  → tracer for LANGSMITH_PROJECT, run_name "research-agent",
+    #                 metadata {"run_id": ...}, tags ["research-agent", "stage-7"]
+redact(data: Any) -> Any        # strips secrets before anything is sent (T5)
+
+# graph.run(...) gains:  trace: bool = False
+# __main__: new flag --trace (only with --yes)
+```
+
+### Rules
+
+| # | Rule |
+|---|---|
+| T1 | **Off by default.** Without `--trace`, nothing is sent to a tracing service, **even if** `LANGSMITH_TRACING=true` is set in the environment. Code switches tracing off for the run, not just "does not switch it on". |
+| T2 | `--trace` needs the tracing key (`LANGSMITH_API_KEY` for LangSmith). Missing → `TracingConfigError` **before** any PubMed or model call (fail loud, as S6, C3). |
+| T3 | **Link to the audit record:** every trace carries `run_id` in its metadata and a fixed run name. The audit record gets `trace: {"enabled": bool, "backend": "langsmith" \| null, "project": str \| null}`. |
+| T4 | What is traced: the graph steps and both Claude calls (prompts, replies, token counts, time). PubMed HTTP calls are **not** traced directly (only the search step's input and output). |
+| T5 | **No secrets in traces.** API keys are never sent (they live in headers and env, not in traced data). `redact` also removes `api_key=...` values and the values of `ANTHROPIC_API_KEY`, `NCBI_API_KEY`, `NCBI_EMAIL` and the tracing key if they appear in any traced text. |
+| T6 | **Data that leaves the machine** when tracing is on: the query, abstracts and titles (public PubMed data), prompts, model replies, claims. No patient data exists in this project. `ARCHITECTURE.md` "data leaves only through" rule gains this third destination, **only with `--trace`**. |
+| T7 | **Cost:** free plan only. No paid tracing plan, no paid feature switched on. The user confirms the plan before the first traced run. |
+| T8 | **Tracing failure** (service down, bad key at send time) never changes the run's result: logged as a warning with the error **class name only**, run carries on, audit record still written (T-Q4). Traces are flushed before the program exits. |
+| T9 | Logs: G9 unchanged (counts only). The trace may hold text; the application log never does. |
+| T10 | Offline tests never reach a tracing service: `conftest.py` forces tracing off (`LANGSMITH_TRACING=false`) for every test that is not `live_paid`. |
+| T11 | Every new function uses `@traced`. Settings from env only (`.env.example` gains `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, placeholders only). |
+
+### Tests (written first, all failing before the code exists)
+
+Offline, no tracing service, no cost.
+
+| Test | Checks |
+|---|---|
+| off by default | no `--trace`: config has no tracer and tracing is switched off (T1) |
+| env cannot switch it on | `LANGSMITH_TRACING=true` in env, no `--trace` → still off (T1) |
+| `--trace` without `--yes` | spend guard still wins: exit 2, nothing runs (G1) |
+| `--trace` without key | `TracingConfigError`, no NCBI request, no model call, no file (T2) |
+| run_id in trace config | `tracing_config(run_id, enabled=True)` has `run_id` in metadata, the run name and tags (T3) |
+| record says trace off | default run → `trace == {"enabled": false, "backend": null, "project": null}` (T3) |
+| record says trace on | traced run with a fake tracer → `enabled: true`, backend, project (T3) |
+| redact strips secrets | `api_key=SECRET` in a URL and the env key values are replaced; normal text kept (T5) |
+| tracing failure does not stop run | fake tracer that raises → run `ok`, record written, warning logged with class name only (T8) |
+| nothing secret logged | log text has no abstract, claim, or key with tracing on (T9) |
+
+Plus one **paid live test** (`live_paid`, user OK each run): real run with `--trace`, `max_results=2`
+(up to 21 Claude calls); asserts the record has `trace.enabled: true`. The user then checks the
+trace in the tracing UI by hand (`run_id` in metadata).
+
+### Open questions (settled 2026-11-09: all as recommended)
+
+| # | Question | Recommendation |
+|---|---|---|
+| T-Q1 | **Which tool:** LangSmith cloud, Langfuse self-hosted, or Langfuse cloud? | **LangSmith cloud.** Nothing new to install, smallest change, and its key also unlocks LangGraph Studio for the screen recording. Choose **Langfuse self-hosted** instead if keeping all data on this machine matters more (cost: a 5-service Docker stack). |
+| T-Q2 | **Opt-in per run** with `--trace` (on top of the key), and force tracing off otherwise? | **Yes.** A key left in `.env` must not quietly send data on every run. |
+| T-Q3 | **Send full prompts and replies**, or hide inputs/outputs? | **Full, with `redact` for secrets.** The data is public abstracts and model text, no patient data; hiding it would make traces useless for debugging. |
+| T-Q4 | **If the tracing service fails:** warn and carry on, or stop the run? | **Warn and carry on.** The audit record on disk is the source of truth; a paid run should not be lost to a tracing outage. (Differs from fail-loud on purpose: the failure is still logged.) |
+| T-Q5 | **Cost guard:** free plan only, user confirms before the first traced run? | **Yes.** I will not check or change plans; the user does in the LangSmith settings. |
+| T-Q6 | **Data leaving:** OK to add the tracing service as a third destination in `ARCHITECTURE.md` (only with `--trace`)? | **Yes**, needed for any cloud option. Not needed for Langfuse self-hosted. |
+| T-Q7 | **LangGraph Studio / screen recording:** part of Stage 7, or a separate step? | **Separate step** after Stage 7. Studio needs `langgraph-cli`, `langgraph.json` and a module-level compiled graph: a different change. |
+
+### Out of scope for Stage 7
+
+- LangGraph Studio, `langgraph.json`, `langgraph-cli` (T-Q7)
+- Evaluations, datasets, prompt management, dashboards, alerts
+- Tracing the PubMed HTTP calls directly
+- Any change to Stages 3 to 6 behaviour when `--trace` is not given
+
+### Done when
+
+- All tests pass; `ruff check`, `ruff format --check`, `mypy --strict` clean
+- `.env.example`, `ARCHITECTURE.md` (new module row, data rule), `PROGRESS.md` updated; committed
+- Paid live test run once with the user's OK; the user has seen the trace in the UI
+
+### Checked against current docs (Context7, 2026-11-09)
+
+- LangSmith: tracing a LangGraph app needs only env settings (`LANGSMITH_TRACING`, `LANGSMITH_API_KEY`);
+  `LANGSMITH_HIDE_INPUTS` / `LANGSMITH_HIDE_OUTPUTS` hide data; `Client(hide_inputs=..., hide_outputs=...)`
+  takes masking functions. Installed: `langsmith 0.14.17`.
+- Langfuse: `from langfuse.langchain import CallbackHandler`, passed as `config={"callbacks": [handler]}`
+  to `graph.stream`; keys `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`; masking
+  via `mask_otel_spans` (preferred) or `mask`; self-hosting by Docker Compose. Not installed.
+- **To check at build time:** the exact call that switches LangChain auto-tracing off for one run
+  (T1), and how to flush traces before exit (T8).
 
 ---
 
