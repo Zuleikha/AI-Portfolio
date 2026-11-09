@@ -15,7 +15,7 @@ Build a LangGraph agent that searches PubMed, summarises the findings, checks ev
 - [x] 3. Build the PubMed search tool **(committed and pushed)**
 - [x] 4. Build the summarise step **(42 tests green, ruff + mypy clean; paid live test passed 2026-11-05)**
 - [x] 5. Build the citation check step **(96 tests green, ruff + mypy clean; paid live test passed 2026-11-09)**
-- [ ] 6. Connect the steps into a graph, add the audit log, and run it
+- [x] 6. Connect the steps into a graph, add the audit log, and run it **(115 tests green, ruff + mypy clean; paid live test passed 2026-11-09; screen recording still to do)**
 - [ ] 7. Add tracing with Langfuse or LangSmith
 
 ## Known issues
@@ -23,6 +23,8 @@ Build a LangGraph agent that searches PubMed, summarises the findings, checks ev
 | # | Found | Stage | Issue | Status |
 |---|---|---|---|---|
 | K1 | 2026-11-06 | 3 | **Bug:** search returns the newest papers, not the most relevant. `search_pubmed` sends no `sort` to ESearch, so E-utilities use their default "most recent" order (demo run: all 5 papers from 2025-26, 3 claims off-topic). Likely fix: `sort=relevance` + a test. | Fixed 2026-11-06 (Stage 3 revision, R11 `sort=relevance`) |
+| K2 | 2026-11-09 | 5 | **False fail (C8):** Lancet-style abstracts use a middle dot as decimal point (`0·51`, `43·6`); the summary writes `0.51`, so C8 reports `number missing` although the quote holds the number. Live run: 2 of 6 claims. Likely fix: treat `·` between digits as `.` when normalising (spec change + test). | Open |
+| K3 | 2026-11-09 | 5 | **False fail (C8):** numbers inside trial names (`SUSTAIN 11`) and "type 2" count as numbers; quotes rarely repeat them, so C8 fails the claim. Live run: 3 of 6 claims (11), 2 (type 2). Options: ignore numbers that are part of a name, or ask the model to quote them too. Needs a decision. | Open |
 
 ## Settled decisions (2026-11-06, user: "accept all")
 
@@ -78,3 +80,4 @@ Also agreed for Stage 5 (design review): quotes as a list of `{pmid, quote}`; ea
 | 2026-11-09 | Stage 6 spec set back to **DRAFT** (user: not approved yet). Note: local commit `5e7b922` (not pushed) still says APPROVED in its message and PRD. Stopped the build; reverted the uncommitted Stage 6 code. PRD revised: G12 injection flag (warn, don't block; `injection_warnings`), G13 Mermaid diagram via `scripts/draw_graph.py` into ARCHITECTURE markers + drift test, G5 creates `runs/`, G6 record-write failure keeps the step error, G-Q5 up to 21 calls, new test rows, Done when (diagram, screen recording). ARCHITECTURE: status/date, marker block, rows for `__main__.py` and `scripts/draw_graph.py`. Tests: 26 offline + 1 `live_paid` in `tests/test_graph.py`, red (ModuleNotFoundError). Emojis removed from this file. Not committed. | User reviews spec + tests → approve or change. |
 | 2026-11-09 | Revised Stage 6 spec **APPROVED** by user (G1 to G13). PRD status updated. Committed. | Build Stage 6 until green. |
 | 2026-11-09 | Built Stage 6: `GraphState` in `state.py`; `search_node`, `summarise_node`, `check_node`; `audit/run_log.py` (citation, run_id, record, injection scan G12); `graph.py` (`build_graph`, `run`, error record G6); `__main__.py` (spend guard, prints verified claims + citations); `scripts/draw_graph.py` (G13), Mermaid diagram generated into ARCHITECTURE. Demo retired: `scripts/demo_run.py` + `tests/test_demo_run.py` removed, ARCHITECTURE row removed, PRD demo section marked retired. 115 passed, 4 deselected; ruff, ruff format, mypy --strict clean. Spend guard checked (exit 2, no calls). README run section updated to `python -m research_agent` + `scripts.draw_graph` (user asked). Paid live test NOT run. Build committed (user OK). | Run `pytest -m live_paid tests/test_graph.py` with user OK; screen recording (tool to decide). |
+| 2026-11-09 | Stage 6 paid live test run once with user OK (`tests/test_graph.py`, query "metformin type 2 diabetes HbA1c randomized", `max_results=2`, 7 Claude calls): **passed** (record written, `status: ok`, 0 injection warnings). 6 claims: 1 verified, 5 failed; model said supported for all 5; all 5 are C8 false fails (K2, K3). Build `c9c88ec` pushed. | Decide K2/K3 fixes; screen recording (tool to decide); Stage 7 spec. |
