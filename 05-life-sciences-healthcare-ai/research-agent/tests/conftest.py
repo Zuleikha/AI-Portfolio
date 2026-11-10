@@ -9,9 +9,11 @@ The trace log always goes to a temp folder. All env changes are undone after eac
 """
 
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 from dotenv import dotenv_values
+from langsmith import utils as ls_utils
 
 FAKE_EMAIL = "tester@example.com"
 FAKE_MODEL = "claude-test-model"
@@ -19,6 +21,12 @@ FAKE_CHECK_MODEL = "claude-test-check-model"
 ENV_FILE = Path(__file__).resolve().parent.parent / ".env"
 NCBI_SETTINGS = ("NCBI_EMAIL", "NCBI_API_KEY")
 ANTHROPIC_SETTINGS = ("ANTHROPIC_API_KEY", "ANTHROPIC_MODEL", "ANTHROPIC_CHECK_MODEL")
+LANGSMITH_SETTINGS = ("LANGSMITH_API_KEY", "LANGSMITH_PROJECT")
+
+
+def refresh_langsmith_env() -> None:
+    """langsmith caches env reads; clear the cache so the current env is seen."""
+    cast(Any, ls_utils.get_env_var).cache_clear()
 
 
 def _load_real(monkeypatch: pytest.MonkeyPatch, names: tuple[str, ...]) -> None:
@@ -47,9 +55,16 @@ def clean_env(
     monkeypatch.setenv("ANTHROPIC_CHECK_MODEL", FAKE_CHECK_MODEL)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
 
+    # T10: offline tests never reach a tracing service, whatever the shell has set.
+    monkeypatch.setenv("LANGSMITH_TRACING", "false")
+    for name in (*LANGSMITH_SETTINGS, "LANGSMITH_ENDPOINT", "LANGCHAIN_TRACING_V2"):
+        monkeypatch.delenv(name, raising=False)
+
     if request.node.get_closest_marker("live"):
         _load_real(monkeypatch, NCBI_SETTINGS)
     if request.node.get_closest_marker("live_paid"):
         # Stage 6 end-to-end test also searches real PubMed (free).
-        _load_real(monkeypatch, NCBI_SETTINGS + ANTHROPIC_SETTINGS)
+        # Stage 7 traced test also needs the LangSmith key (free plan only, T7).
+        _load_real(monkeypatch, NCBI_SETTINGS + ANTHROPIC_SETTINGS + LANGSMITH_SETTINGS)
+    refresh_langsmith_env()
     return trace_log

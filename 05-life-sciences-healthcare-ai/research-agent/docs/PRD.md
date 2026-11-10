@@ -792,6 +792,8 @@ auto-tracing **off**; that needs a context manager around the run (Context7, 202
 | T9 | Logs: G9 unchanged (counts only). The trace may hold text; the application log never does. |
 | T10 | Offline tests never reach a tracing service: `conftest.py` forces tracing off (`LANGSMITH_TRACING=false`) for every test that is not `live_paid`. |
 | T11 | Every new function uses `@traced`. Settings from env only (`.env.example` gains `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT`, placeholders only). |
+| T12 | **Default project.** If `LANGSMITH_PROJECT` is not set (or blank), the project is `research-agent`. The record's `trace.project` shows the project actually used (user OK 2026-11-10). |
+| T13 | **`redact` is wired in.** With `--trace`, the tracer's LangSmith client is built with `hide_inputs=redact` and `hide_outputs=redact`, so every input and output passes through `redact` before it is sent (T5). `redact` returns a new copy; it never changes its input (user OK 2026-11-10). |
 
 ### Tests (written first, all failing before the code exists)
 
@@ -810,6 +812,8 @@ Offline, no tracing service, no cost.
 | redact strips secrets | `api_key=SECRET` in a URL and the env key values are replaced; normal text kept (T5) |
 | tracing failure does not stop run | fake tracer that raises → run `ok`, record written, warning logged with class name only (T8) |
 | nothing secret logged | log text has no abstract, claim, or key with tracing on (T9) |
+| default project | `LANGSMITH_PROJECT` unset → tracer project and record `trace.project` are `research-agent` (T12) |
+| redact wired into tracer | `tracing_config(..., enabled=True)`: the tracer's client hides inputs and outputs with `redact` (T13) |
 
 Plus one **paid live test** (`live_paid`, user OK each run): real run with `--trace`, `max_results=2`
 (up to 21 Claude calls); asserts the record has `trace.enabled: true`. The user then checks the
