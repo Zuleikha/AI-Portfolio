@@ -759,14 +759,23 @@ The audit record (Stage 6) stays the source of truth on disk. Tracing is a secon
 ```python
 # research_agent/tracing.py (new)
 tracing_config(run_id: str, *, enabled: bool) -> RunnableConfig
-    # enabled=False → no tracer, and LangChain auto-tracing switched off for this run
+    # enabled=False → no tracer, no trace metadata
     # enabled=True  → tracer for LANGSMITH_PROJECT, run_name "research-agent",
     #                 metadata {"run_id": ...}, tags ["research-agent", "stage-7"]
+tracing_scope(*, enabled: bool) -> ContextManager[None]
+    # wraps the whole run: langsmith.tracing_context(enabled=enabled)
+    # enabled=False switches tracing off even if LANGSMITH_TRACING=true (T1)
+    # on exit, flushes pending traces (wait_for_all_tracers) (T8)
 redact(data: Any) -> Any        # strips secrets before anything is sent (T5)
 
 # graph.run(...) gains:  trace: bool = False
+#   with tracing_scope(enabled=trace): graph.invoke(..., config=tracing_config(run_id, enabled=trace))
 # __main__: new flag --trace (only with --yes)
 ```
+
+Why two parts (option A, user OK 2026-11-10): a `RunnableConfig` alone cannot switch
+auto-tracing **off**; that needs a context manager around the run (Context7, 2026-11-10).
+`tracing_config` keeps the trace details (T3); `tracing_scope` does on/off and flush (T1, T8).
 
 ### Rules
 
@@ -790,8 +799,9 @@ Offline, no tracing service, no cost.
 
 | Test | Checks |
 |---|---|
-| off by default | no `--trace`: config has no tracer and tracing is switched off (T1) |
-| env cannot switch it on | `LANGSMITH_TRACING=true` in env, no `--trace` → still off (T1) |
+| off by default | no `--trace`: config has no tracer, and the run happens inside `tracing_scope(enabled=False)` (T1) |
+| env cannot switch it on | `LANGSMITH_TRACING=true` in env, no `--trace` → inside the scope, tracing is off (T1) |
+| scope flushes on exit | `tracing_scope(enabled=True)` calls the flush on exit, also when the run raises (T8) |
 | `--trace` without `--yes` | spend guard still wins: exit 2, nothing runs (G1) |
 | `--trace` without key | `TracingConfigError`, no NCBI request, no model call, no file (T2) |
 | run_id in trace config | `tracing_config(run_id, enabled=True)` has `run_id` in metadata, the run name and tags (T3) |
@@ -838,8 +848,10 @@ trace in the tracing UI by hand (`run_id` in metadata).
 - Langfuse: `from langfuse.langchain import CallbackHandler`, passed as `config={"callbacks": [handler]}`
   to `graph.stream`; keys `LANGFUSE_PUBLIC_KEY`, `LANGFUSE_SECRET_KEY`, `LANGFUSE_BASE_URL`; masking
   via `mask_otel_spans` (preferred) or `mask`; self-hosting by Docker Compose. Not installed.
-- **To check at build time:** the exact call that switches LangChain auto-tracing off for one run
-  (T1), and how to flush traces before exit (T8).
+- **Checked at build time (Context7, 2026-11-10; confirmed on installed langsmith 0.14.17,
+  langchain-core 1.7.4):** T1 off for one run = `langsmith.tracing_context(enabled=False)`
+  (overrides `LANGSMITH_TRACING=true`). T8 flush = `langchain_core.tracers.langchain.wait_for_all_tracers()`
+  in a `finally` (or `Client.flush()`).
 
 ---
 
