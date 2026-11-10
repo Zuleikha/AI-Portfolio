@@ -185,10 +185,11 @@ def _normalise(text: str) -> str:
 def _read_numbers(text: str) -> list[tuple[str, str | None]]:
     """Every number in order as ``(value, label phrase or None)`` (C8, C8a, C8b).
 
-    Thousands commas removed, middle dot read as a decimal point. The label phrase is
-    lower case with one space, e.g. ``"sustain 11"``; ``None`` means a measurement.
+    Thousands commas removed, middle dot read as a decimal point, any dash read as a
+    hyphen (so ``type–2`` is a label). The label phrase is lower case with one space,
+    e.g. ``"sustain 11"``; ``None`` means a measurement.
     """
-    text = _MIDDLE_DOT.sub(".", unicodedata.normalize("NFKC", text))
+    text = _MIDDLE_DOT.sub(".", _DASHES.sub("-", unicodedata.normalize("NFKC", text)))
     labels = {m.start(2): f"{m.group(1).casefold()} {m.group(2)}" for m in _LABEL.finditer(text)}
     return [(m.group().replace(",", ""), labels.get(m.start())) for m in _NUMBER.finditer(text)]
 

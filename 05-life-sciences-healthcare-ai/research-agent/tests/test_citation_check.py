@@ -742,3 +742,11 @@ def test_live_paid_citation_check() -> None:
     assert [c.text for c in checked.verified] == [summary.claims[0].text]
     assert [c.text for c in checked.failed] == [summary.claims[1].text]
     assert "number missing: 400" in checked.failed[0].reasons
+
+
+def test_en_dash_label_matches() -> None:  # C8b, my own test
+    quote = "semaglutide lowered HbA1c by 1.5% points over 52 weeks"
+    claim = "In SUSTAIN\u201311, semaglutide lowered HbA1c by 1.5% points over 52 weeks."
+    result = search_result(paper("111", SUSTAIN_ABSTRACT))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert verified_texts(checked) == [claim]

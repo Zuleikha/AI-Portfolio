@@ -513,8 +513,8 @@ All 5 were false fails (`PROGRESS.md`, K2 and K3):
 | # | Rule |
 |---|---|
 | C8a | **Middle dot (K2).** When reading numbers (claim and quotes), a middle dot `·` (U+00B7) between two digits is read as a decimal point: `0·51` = `0.51`. Nothing else changes (C7 quote matching already compares like with like). |
-| C8b | **Label numbers (K3).** A *label number* is a whole number (no decimal part, no thousands comma, not followed by `%`) that comes right after: the word `type` or `phase` (case ignored), or an all-caps word of **at least 4 letters** (e.g. `SUSTAIN 11`, `UKPDS 33`). The word and number are joined by one space or one hyphen (`type 2`, `type-2`). |
-| C8c | A label number **passes if its label phrase** (word + number, e.g. `SUSTAIN 11`, `type 2`) appears in the **title or abstract** of a paper the claim cites. Case ignored; a space or a hyphen between word and number both match. It does not have to be in the quotes. If not found → reason `number missing: <n>` (same text as now). |
+| C8b | **Label numbers (K3).** A *label number* is a whole number (no decimal part, no thousands comma, not followed by `%`) that comes right after: the word `type` or `phase` (case ignored), or an all-caps word of **at least 4 letters** (e.g. `SUSTAIN 11`, `UKPDS 33`). The word and number are joined by one space, one hyphen or one en dash (`type 2`, `type-2`, `type–2`). |
+| C8c | A label number **passes if its label phrase** (word + number, e.g. `SUSTAIN 11`, `type 2`) appears in the **title or abstract** of a paper the claim cites. Case ignored; a space, a hyphen or an en dash between word and number all match. It does not have to be in the quotes. If not found → reason `number missing: <n>` (same text as now). |
 | C8d | **Measurement numbers** (every number that is not a label number, e.g. `21.7`, `400`, `0.51`, `30` in `BMI 30`) must still be in the good quotes. No change from C8. |
 | C8e | Each occurrence is judged on its own. If the same number is a label in one place and a measurement in another, the measurement occurrence still needs the quotes. **Label numbers in the quotes are not evidence for a measurement** (`type 2` in a quote does not prove `lost 2 kg`). Reasons stay one per distinct number, in claim order (C9). |
 
@@ -531,6 +531,7 @@ Why the guards in C8b (live record, 2026-11-09): an all-caps rule with no limits
 | trial name label | claim "In SUSTAIN 11, ... by 1.5% points", abstract has `SUSTAIN 11`, quote has `1.5%` but not `11` → verified (C8b, C8c) |
 | type label in abstract | claim "... type 2 diabetes ... 40 adults", abstract has `type 2 diabetes`, quote has `40` only → verified (C8c) |
 | hyphen label | claim `type 2`, abstract has `type-2` → verified (C8b, C8c) |
+| en dash label | claim `SUSTAIN–11` (en dash), abstract has `SUSTAIN 11`, quote lacks `11` → verified, no `number missing: 11` (C8b, C8c) |
 | phase label in title | claim "In a phase 3 trial, ...", `phase 3` only in the **title** → verified (C8c) |
 | label not in cited paper | claim `SUSTAIN 11`, phrase only in an **uncited** paper → `number missing: 11` (C8c) |
 | short caps word is not a label | claim `BMI 30`, abstract has `BMI 30`, quote lacks `30` → `number missing: 30` (C8b, C8d) |
