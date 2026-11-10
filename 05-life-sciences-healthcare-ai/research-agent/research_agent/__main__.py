@@ -1,4 +1,4 @@
-"""Entry point: ``python -m research_agent "<query>" --yes`` (docs/PRD.md, Stage 6).
+"""Entry point: ``python -m research_agent "<query>" --yes [--trace]`` (docs/PRD.md, Stages 6, 7).
 
 COSTS MONEY: calls the paid Anthropic API (at most 21 calls, G3). Refuses to run
 without ``--yes`` (G1). Errors are not caught: the traceback shows and the exit
@@ -30,6 +30,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("query", help="PubMed search query")
     parser.add_argument(
         "--yes", action="store_true", help="confirm: this calls the paid Anthropic API"
+    )
+    parser.add_argument(
+        "--trace",
+        action="store_true",
+        help="send a trace of this run to LangSmith (needs LANGSMITH_API_KEY; only with --yes)",
     )
     return parser.parse_args(argv)
 
@@ -73,6 +78,7 @@ def main(
         client=client,
         summarise_llm=summarise_llm,
         check_llm=check_llm,
+        trace=args.trace,
     )
     record = json.loads(outcome.path.read_text(encoding="utf-8"))
     print(_report(record, outcome.path))

@@ -20,6 +20,8 @@ from research_agent.tools.pubmed import Paper
 STAMP_FORMAT = "%Y%m%dT%H%M%SZ"
 RUN_ID_HEX_BYTES = 4  # 8 hex characters
 MAX_CITED_AUTHORS = 3  # Q7
+# Record entry when a run is not traced (Stage 7, T3).
+TRACE_OFF: dict[str, Any] = {"enabled": False, "backend": None, "project": None}
 
 # Known prompt-injection phrases (G12). Lower case, single spaces. Warn only, never block.
 INJECTION_PHRASES: tuple[str, ...] = (
@@ -83,8 +85,9 @@ def build_audit_record(
     finished_at: datetime,
     state: GraphState,
     error: tuple[str, BaseException] | None,
+    trace: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """The record (G7). Steps that did not run are ``null``."""
+    """The record (G7). Steps that did not run are ``null``. ``trace``: Stage 7, T3."""
     search = state.get("search")
     summary = state.get("summary")
     checked = state.get("checked")
@@ -119,6 +122,7 @@ def build_audit_record(
             "failed": len(checked.failed) if checked is not None else 0,
         },
         "injection_warnings": find_injection_warnings(search.papers) if search else [],
+        "trace": dict(TRACE_OFF) if trace is None else trace,
     }
 
 

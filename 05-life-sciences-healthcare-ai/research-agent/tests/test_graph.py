@@ -294,6 +294,7 @@ def test_record_contents(tmp_path: Path) -> None:  # G7, R14, G-Q6
         "check",
         "counts",
         "injection_warnings",
+        "trace",  # Stage 7, T3
     }
     assert RUN_ID.match(record["run_id"])
     assert record["models"] == {"summarise": FAKE_MODEL, "check": FAKE_CHECK_MODEL}

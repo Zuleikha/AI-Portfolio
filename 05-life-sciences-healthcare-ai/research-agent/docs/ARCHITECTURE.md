@@ -1,6 +1,6 @@
 # Research Agent: Architecture
 
-Status: **DRAFT** (updated 2026-11-09 for the Stage 6 draft). Spec: `docs/PRD.md`.
+Status: **DRAFT** (updated 2026-11-10 for Stage 7, tracing). Spec: `docs/PRD.md`.
 
 ## Flow
 
@@ -60,7 +60,8 @@ graph TD;
 | `nodes/summarise.py` | Graph node: summary with PMID citations | `state`, `llm_common`, `observability`; `tools` (types: `Paper`, `SearchResult`) | 4 |
 | `nodes/citation_check.py` | Graph node: verifies every claim (model verdict + quote and number checks) | `state`, `llm_common`, `observability`; `tools` (types: `Paper`, `SearchResult`) | 5 |
 | `audit/run_log.py` | Writes one audit record per run; citation strings; injection-phrase scan (G12) | `state`, `observability`; `tools` (type: `Paper`) | 6 |
-| `graph.py` | Connects the nodes (LangGraph) | `nodes`, `state`, `audit` | 6 |
+| `tracing.py` | Opt-in LangSmith tracing: `tracing_config`, `tracing_scope` (on/off + flush), `redact` | `observability` only | 7 |
+| `graph.py` | Connects the nodes (LangGraph); wraps each run in `tracing_scope` | `nodes`, `state`, `audit`, `tracing` | 6, 7 |
 | `__main__.py` | Entry point: `python -m research_agent "<query>" --yes`; spend guard, loads `.env`, prints verified claims + citations | `graph`, `audit`, `observability` | 6 |
 | `scripts/draw_graph.py` | Writes the Mermaid diagram of the real graph into this file, between the markers | `graph`, `observability` | 6 |
 
@@ -69,13 +70,14 @@ graph TD;
 - Dependencies point one way: `graph` → `nodes` → `tools`. A tool never imports a node.
 - A node never imports another node. Types shared between nodes live in `state.py`; each node re-exports its own result types, so `nodes.summarise.Summary` etc. still work.
 - Only `tools/` talks to NCBI. Only `nodes/summarise.py` and `nodes/citation_check.py` talk to Claude.
-- Data leaves the project only through those two external calls. Everything else stays on local disk.
+- Data leaves the project only through those two external calls, plus a third **only with `--trace`**: LangSmith (query, titles, abstracts, prompts, replies, claims; secrets removed by `redact`; Stage 7, T6). Everything else stays on local disk.
+- Only `tracing.py` sets up tracing. Without `--trace`, tracing is switched off for the run even if `LANGSMITH_TRACING=true` (T1).
 
 ## Config
 
 All settings come from environment variables (`.env`, template in `.env.example`):
 `NCBI_EMAIL`, `NCBI_API_KEY` (optional), `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`,
-`ANTHROPIC_CHECK_MODEL` (Stage 5).
+`ANTHROPIC_CHECK_MODEL` (Stage 5), `LANGSMITH_API_KEY`, `LANGSMITH_PROJECT` (Stage 7, only with `--trace`).
 
 ## Not in this design
 

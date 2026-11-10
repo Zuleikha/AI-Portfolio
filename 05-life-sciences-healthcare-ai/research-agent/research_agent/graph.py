@@ -23,6 +23,7 @@ from research_agent.nodes.search import search_node
 from research_agent.nodes.summarise import summarise_node
 from research_agent.observability import traced
 from research_agent.state import CheckedSummary, GraphState
+from research_agent.tracing import trace_info, tracing_config, tracing_scope
 
 logger = logging.getLogger(__name__)
 
@@ -77,17 +78,25 @@ def run(
     client: httpx.Client | None = None,
     summarise_llm: Runnable[Any, Any] | None = None,
     check_llm: Runnable[Any, Any] | None = None,
+    trace: bool = False,
 ) -> RunOutcome:
-    """Run the graph once and write its audit record (G5, G6, G12). Hooks are for tests."""
+    """Run the graph once and write its audit record (G5, G6, G12). Hooks are for tests.
+
+    ``trace=True`` sends a trace to LangSmith (Stage 7); off by default, even against
+    ``LANGSMITH_TRACING=true`` (T1). A missing key fails before any call (T2).
+    """
     created_at = datetime.now(UTC)
     run_id = new_run_id(created_at)
+    config = tracing_config(run_id, enabled=trace)  # T2: before any PubMed or model call
+    trace_entry = trace_info(enabled=trace)
     graph = build_graph(client=client, summarise_llm=summarise_llm, check_llm=check_llm)
     state: GraphState = {"query": query, "max_results": max_results}
 
     try:
-        for snapshot in graph.stream(state, stream_mode="values"):
-            # stream_mode="values" yields the full graph state after each step.
-            state = cast(GraphState, snapshot)
+        with tracing_scope(enabled=trace):
+            for snapshot in graph.stream(state, config=config, stream_mode="values"):
+                # stream_mode="values" yields the full graph state after each step.
+                state = cast(GraphState, snapshot)
     except Exception as exc:
         step = _failed_step(state)
         logger.error("run failed at step %s (%s)", step, type(exc).__name__)
@@ -97,6 +106,7 @@ def run(
             finished_at=datetime.now(UTC),
             state=state,
             error=(step, exc),
+            trace=trace_entry,
         )
         logger.info("injection warnings: %d", len(record["injection_warnings"]))
         try:
@@ -111,6 +121,7 @@ def run(
         finished_at=datetime.now(UTC),
         state=state,
         error=None,
+        trace=trace_entry,
     )
     logger.info("injection warnings: %d", len(record["injection_warnings"]))  # count only (G9)
     path = write_audit_record(record, runs_dir)

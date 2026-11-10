@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 from langchain_core.messages import BaseMessage
-from langchain_core.runnables import Runnable, RunnableLambda
+from langchain_core.runnables import Runnable, RunnableConfig, RunnableLambda
 from langchain_core.tracers.langchain import LangChainTracer
 from langchain_core.tracers.schemas import Run
 from langsmith import Client
@@ -83,6 +83,13 @@ def fake_tracer(monkeypatch: pytest.MonkeyPatch) -> Iterator[list[FakeTracer]]:
     yield FakeTracer.instances
 
 
+def tracers_in(config: RunnableConfig) -> list[LangChainTracer]:
+    """The LangSmith tracers in a config's callbacks (a list, or none)."""
+    callbacks = config.get("callbacks") or []
+    assert isinstance(callbacks, list)
+    return [h for h in callbacks if isinstance(h, LangChainTracer)]
+
+
 def spy(inner: Runnable[Any, Any], seen: list[bool]) -> Runnable[Any, Any]:
     """Wrap a fake model: record whether tracing is on at the moment it is called."""
 
@@ -110,7 +117,7 @@ def go(tmp_path: Path, *, trace: bool = False, seen: list[bool] | None = None) -
 
 def test_off_by_default(tmp_path: Path) -> None:  # T1
     config = tracing_config("RID", enabled=False)
-    assert not any(isinstance(h, LangChainTracer) for h in config.get("callbacks") or [])
+    assert tracers_in(config) == []
     assert "run_id" not in (config.get("metadata") or {})
 
     seen: list[bool] = []
@@ -176,7 +183,7 @@ def test_run_id_in_trace_config(fake_tracer: list[FakeTracer]) -> None:  # T3
     assert config["metadata"]["run_id"] == "RID"
     assert config["run_name"] == "research-agent"
     assert config["tags"] == ["research-agent", "stage-7"]
-    tracers = [h for h in config.get("callbacks") or [] if isinstance(h, LangChainTracer)]
+    tracers = tracers_in(config)
     assert len(tracers) == 1
     assert tracers[0].project_name == FAKE_PROJECT
 
