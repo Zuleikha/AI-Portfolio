@@ -1,9 +1,16 @@
-# Research Agent (in progress)
+# Research Agent
 
 A LangGraph agent that searches PubMed, summarises the findings, checks every
 claim against its citations, and writes an audit record for each run.
 
-**Status:** personal project, under construction. Not deployed. See `docs/PROGRESS.md`.
+**Status:** personal project, complete (Stages 1 to 7). Not deployed. See `docs/PROGRESS.md`.
+
+## Demo
+
+![One real run: search, summarise, check, audit record](docs/demo.gif)
+
+One real run (2026-11-12), recorded with asciinema (`docs/demo.cast`). The intro and heading
+are added to the recording; the run output is unchanged.
 
 ## Docs
 
