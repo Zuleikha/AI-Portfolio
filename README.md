@@ -23,7 +23,7 @@ project demonstrates. Every project folder is self-contained and has its own REA
 | [2 · AI/ML & Data](#2--aiml--data) | realtime-transaction-scoring-api · candidate-ranking-service |
 | [3 · Intelligent Automation](#3--intelligent-automation) | RentPulse *(documentation only)* |
 | [4 · AI Security, Evaluation & Governance](#4--ai-security-evaluation--governance) | banking-knowledge-agent |
-| [5 · Life Sciences / Healthcare AI](#5--life-sciences--healthcare-ai) | pharma-ai · ml-training-orchestration-pipeline |
+| [5 · Life Sciences / Healthcare AI](#5--life-sciences--healthcare-ai) | research-agent · pharma-ai · ml-training-orchestration-pipeline |
 
 Several projects demonstrate more than one category. Each is filed under its strongest one,
 and its README lists the others.
@@ -62,6 +62,7 @@ and its README lists the others.
 
 | Project | What it does | What it demonstrates |
 |---|---|---|
+| [**research-agent**](05-life-sciences-healthcare-ai/research-agent) | LangGraph agent that searches PubMed, summarises with Claude, and checks every claim against its cited abstract | Checkable LLM output, audit trail per run. *Public literature only* |
 | [**pharma-ai**](05-life-sciences-healthcare-ai/pharma-ai) | Drug-discovery workflow for the DHFR target: structure prediction, pocket detection, docking, cheminformatics | Integrating scientific tools into one workflow and reading the results correctly. *Pre-clinical and computational only* |
 | [**ml-training-orchestration-pipeline**](05-life-sciences-healthcare-ai/ml-training-orchestration-pipeline) | Fine-tunes BiomedBERT to detect adverse drug events in biomedical literature, with a Dagster pipeline and drift monitoring | Biomedical NLP and reproducible ML pipelines |
 

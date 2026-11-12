@@ -12,6 +12,20 @@ claim against its citations, and writes an audit record for each run.
 One real run (2026-11-12), recorded with asciinema (`docs/demo.cast`). The intro and heading
 are added to the recording; the run output is unchanged.
 
+## What this project demonstrates
+
+*PERSONAL PROJECT EXPERIENCE · not deployed*
+
+| Capability | Evidence |
+|---|---|
+| Checkable LLM output | Claude must quote its source; code checks every quote and number (`nodes/citation_check.py`) |
+| System design | 3-step LangGraph flow, typed state, import rules (`docs/ARCHITECTURE.md`) |
+| Safety | Spend guard, call caps, injection warnings, secrets redacted |
+| Audit | One JSON record per run, even on failure; opt-in LangSmith tracing |
+| Discipline | Spec approved before each stage; tests first; real-run bugs fixed (K2 to K4) |
+
+Transferable to literature review: every statement traces back to a source.
+
 ## Docs
 
 | File | What it covers |
