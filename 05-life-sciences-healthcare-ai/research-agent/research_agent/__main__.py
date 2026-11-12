@@ -7,6 +7,7 @@ code is 1 (fail loud); the audit record is still written (G6).
 
 import argparse
 import json
+import textwrap
 from pathlib import Path
 from typing import Any
 
@@ -19,6 +20,9 @@ from research_agent.observability import traced
 
 EXIT_OK = 0
 EXIT_NO_CONSENT = 2
+WRAP_WIDTH = 88  # O3
+RULE = "─" * 40  # O1, O2
+INDENT = " " * 5  # O3, O4
 
 
 @traced
@@ -40,20 +44,47 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
 
 
 @traced
-def _report(record: dict[str, Any], path: Path) -> str:
-    """Verified claims with citations; failed claims as a count only (G-Q2)."""
+def _short_citation(paper: dict[str, Any]) -> str:
+    """``<first author>[ et al.] <year> · <journal>`` (O4). Full citation stays in the record."""
+    authors: list[str] = paper["authors"]
+    parts: list[str] = []
+    if authors:
+        parts.append(f"{authors[0]} et al." if len(authors) > 1 else authors[0])
+    if paper["year"] is not None:
+        parts.append(str(paper["year"]))
+    return f"{' '.join(parts)} · {paper['journal']}"
+
+
+@traced
+def format_report(record: dict[str, Any], path: Path) -> str:
+    """Terminal output (O1 to O7): header, counts, verified claims with short citations."""
     counts = record["counts"]
     lines = [
-        f"Audit record: {path}",
-        " | ".join(f"{name}: {n}" for name, n in counts.items())
-        + f" | injection warnings: {len(record['injection_warnings'])}",
+        f'Research Agent · "{record["query"]}"',
+        RULE,
+        f"Papers {counts['papers']} · Claims {counts['claims']} · "
+        f"✔ Verified {counts['verified']} · ✘ Failed {counts['failed']}",
+        f"Skipped {counts['skipped']} · Rejected {counts['rejected']} · "
+        f"Injection warnings {len(record['injection_warnings'])}",
+        RULE,
     ]
+    papers = {p["pmid"]: p for p in (record["search"] or {}).get("papers", [])}
     verified = record["check"]["verified"] if record["check"] else []
-    lines.append(f"Verified claims: {len(verified)}")
+    if not verified:
+        lines += ["", "No verified claims."]
     for number, claim in enumerate(verified, start=1):
-        lines.append(f"{number}. {claim['text']}")
-        lines.extend(f"   - {record['citations'][pmid]}" for pmid in claim["pmids"])
-    lines.append(f"Failed claims: {counts['failed']} (details in the audit record)")
+        lines.append("")
+        lines += textwrap.wrap(
+            claim["text"],
+            width=WRAP_WIDTH,
+            initial_indent=f"✔ {number}. ",
+            subsequent_indent=INDENT,
+        )
+        for pmid in claim["pmids"]:
+            lines.append(INDENT + _short_citation(papers[pmid]))
+            lines.append(INDENT + papers[pmid]["url"])
+    lines += ["", f"✘ Failed: {counts['failed']} (reasons in the audit record)"]
+    lines += ["", f"Audit record: {path}"]
     return "\n".join(lines)
 
 
@@ -81,7 +112,7 @@ def main(
         trace=args.trace,
     )
     record = json.loads(outcome.path.read_text(encoding="utf-8"))
-    print(_report(record, outcome.path))
+    print(format_report(record, outcome.path))
     return EXIT_OK
 
 

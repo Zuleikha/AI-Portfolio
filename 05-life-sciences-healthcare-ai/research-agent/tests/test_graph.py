@@ -154,13 +154,15 @@ def test_without_yes_makes_no_calls_and_writes_nothing(tmp_path: Path) -> None: 
 
 def test_main_prints_verified_claims_with_citations(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
-) -> None:  # G-Q2
+) -> None:  # G-Q2, O4, O5
     assert main_with(tmp_path, fake_ncbi(), two_claims(), two_verdicts(), "--yes") == 0
     out = capsys.readouterr().out
     assert str(next((tmp_path / "runs").glob("*.json"))) in out
     assert GOOD_CLAIM in out
-    assert "Smith J, Lee K, Chan M, et al. Drug X trial." in out
+    assert "Smith J et al. 2021 · Test Journal" in out
+    assert "https://pubmed.ncbi.nlm.nih.gov/111/" in out
     assert BAD_CLAIM not in out  # failed claims: count only
+    assert "✘ Failed: 1 (reasons in the audit record)" in out
 
 
 # ---------------------------------------------------------------- graph run

@@ -1,6 +1,6 @@
 # Research Agent: PRD
 
-Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09** (revised spec). Stage 5 revision (K2, K3) **APPROVED by user 2026-11-09**. Stage 7 **APPROVED by user 2026-11-09**.
+Status: Goal + Stage 3 **APPROVED by user 2026-11-04**. Stage 4 **APPROVED by user 2026-11-04**. Demo script **APPROVED by user 2026-11-06**. Stage 3 revision **APPROVED by user 2026-11-06**. Stage 5 **APPROVED by user 2026-11-06**. Stage 6 **APPROVED by user 2026-11-09** (revised spec). Stage 5 revision (K2, K3) **APPROVED by user 2026-11-09**. Stage 7 **APPROVED by user 2026-11-09**. Stage 6 revision (terminal output) **APPROVED by user 2026-11-12**.
 
 ## Goal
 
@@ -25,6 +25,7 @@ approved by the user before it is built.
 | 5r | Stage 5 revision: C8 number fixes (K2, K3) | Section below, APPROVED |
 | 6 | Graph, audit log, first run | Section below, APPROVED |
 | 7 | Tracing with Langfuse or LangSmith | Section below, APPROVED (LangSmith) |
+| 6r | Stage 6 revision: easier-to-read terminal output (O1 to O7) | Section below, APPROVED |
 
 ---
 
@@ -725,6 +726,71 @@ LangGraph `1.2.19` installed. `StateGraph(<TypedDict>)`, nodes return partial st
 `add_edge(START, ...)`, `compile()`; `stream(..., stream_mode="values")` yields the full state
 after each step. Mermaid text: `compiled.get_graph().draw_mermaid()` (returns a string; confirmed
 present in the installed version).
+
+## Stage 6 revision: terminal output layout
+
+Status: **APPROVED by user 2026-11-12** (layout "short + spaced", no colour; test change OK). Replaces the
+print format of G-Q2. What is printed stays the same (verified claims + citations, failed as a
+count); only the layout changes. The audit record and its full citation (G8) do not change.
+
+### Why
+
+The first demo recording (2026-11-12) printed full G8 citations (all title words, DOI) under every
+claim with no spacing: hard to read, and the first claims scrolled off screen.
+
+### Example (fake data)
+
+```
+Research Agent · "metformin side effects"
+────────────────────────────────────────
+Papers 5 · Claims 10 · ✔ Verified 9 · ✘ Failed 1
+Skipped 0 · Rejected 0 · Injection warnings 0
+────────────────────────────────────────
+
+✔ 1. Drug X lowered blood pressure in 40 adults over 12 weeks compared with placebo in a
+     randomised trial.
+     Smith J et al. 2021 · Test Journal
+     https://pubmed.ncbi.nlm.nih.gov/111/
+
+✘ Failed: 1 (reasons in the audit record)
+
+Audit record: runs/20261112T094819Z_0ee2c803.json
+```
+
+### Interface
+
+`_report` in `__main__.py` becomes public: `format_report(record: dict[str, Any], path: Path) -> str`
+(so it can be tested without a run). `WRAP_WIDTH = 88`, `RULE = "─" * 40`.
+
+### Rules
+
+| # | Rule |
+|---|---|
+| O1 | Header: `Research Agent · "<query>"`, then `RULE`. |
+| O2 | Counts: `Papers · Claims · ✔ Verified · ✘ Failed` on one line; `Skipped · Rejected · Injection warnings` on the next; then `RULE`. |
+| O3 | Each verified claim after a blank line: `✔ <n>. <text>`, wrapped at `WRAP_WIDTH`; wrapped lines indented 5 spaces. |
+| O4 | Under the claim, per cited PMID (5-space indent): short citation `<first author>[ et al.] <year> · <journal>`, then its URL on its own line. ` et al.` only if more than 1 author; year left out if unknown; no author → starts at year. Full citation stays in the record (G8). |
+| O5 | After the claims, a blank line, then `✘ Failed: <n> (reasons in the audit record)`. Failed claim text is never printed (G-Q2). |
+| O6 | No verified claims → `No verified claims.` in place of the list. |
+| O7 | Last line: `Audit record: <path>` (stays visible at the end of the output). |
+
+### Tests (written first, failing before the code)
+
+| Test | Checks |
+|---|---|
+| main prints verified claims with citations (changed) | path, claim, short citation `Smith J et al. 2021 · Test Journal` and URL in stdout; bad claim not; `✘ Failed: 1` (O4, O5) |
+| report layout | exact output for a small record: header, counts, rule lines, blank lines, last line is the path (O1, O2, O3, O7) |
+| long claim wraps | no line over `WRAP_WIDTH`; wrapped lines start with 5 spaces (O3) |
+| short citation variants | 1 author → no `et al.`; no year → year left out; no authors → starts at year (O4) |
+| no verified claims | prints `No verified claims.` (O6) |
+
+### Done when
+
+- All tests pass; ruff, ruff format, mypy --strict clean
+- Demo re-recorded (one paid run, user OK) into `docs/demo.gif` + `docs/demo.cast`
+- `PROGRESS.md` updated; committed
+
+---
 
 ## Stage 7: Tracing
 
