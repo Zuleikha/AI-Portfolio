@@ -77,6 +77,13 @@ _MIDDLE_DOT = re.compile(r"(?<=\d)\u00b7(?=\d)")
 # Label number (C8b, K3): a whole number right after "type" or "phase" (any case) or an
 # all-caps word of 4+ letters, joined by one space or hyphen. Not a decimal, not a percent.
 _LABEL = re.compile(r"(?<!\w)((?i:type|phase)|[A-Z]{4,})[ -](\d+)(?![\w%]|[.,]\d)")
+# Duration number (C8f, K4): a whole number joined by a space or hyphen to a time unit.
+# Never a label (C8g). Short forms (h, hr, wk, yr) mostly appear in paper text.
+_DURATION = re.compile(
+    r"(?<![\w.,])(\d+)[ -](hours?|hrs?|h|days?|weeks?|wks?|months?|years?|yrs?)(?![\w%])",
+    re.IGNORECASE,
+)
+_UNIT_NAMES = {"h": "hour", "hr": "hour", "wk": "week", "yr": "year"}
 
 
 # ---------------------------------------------------------------- errors
@@ -182,16 +189,44 @@ def _normalise(text: str) -> str:
 
 
 @traced
-def _read_numbers(text: str) -> list[tuple[str, str | None]]:
-    """Every number in order as ``(value, label phrase or None)`` (C8, C8a, C8b).
+def _unit(word: str) -> str:
+    """Canonical time unit (C8f): ``Weeks`` → ``week``, ``h`` → ``hour``."""
+    word = word.casefold().removesuffix("s")
+    return _UNIT_NAMES.get(word, word)
+
+
+@traced
+def _clean(text: str) -> str:
+    """NFKC, any dash read as a hyphen, middle dot read as a decimal point (C8a)."""
+    return _MIDDLE_DOT.sub(".", _DASHES.sub("-", unicodedata.normalize("NFKC", text)))
+
+
+@traced
+def _durations(text: str) -> dict[int, str]:
+    """Start position → ``"<n> <unit>"`` for every duration in cleaned text (C8f)."""
+    return {m.start(1): f"{m.group(1)} {_unit(m.group(2))}" for m in _DURATION.finditer(text)}
+
+
+@traced
+def _read_numbers(text: str) -> list[tuple[str, str | None, str | None]]:
+    """Every number in order as ``(value, label phrase, duration)`` (C8, C8a, C8b, C8f).
 
     Thousands commas removed, middle dot read as a decimal point, any dash read as a
     hyphen (so ``type–2`` is a label). The label phrase is lower case with one space,
-    e.g. ``"sustain 11"``; ``None`` means a measurement.
+    e.g. ``"sustain 11"``; a duration is ``"<n> <unit>"``, e.g. ``"12 week"``, and is
+    never a label (C8g). Both ``None`` means a measurement.
     """
-    text = _MIDDLE_DOT.sub(".", _DASHES.sub("-", unicodedata.normalize("NFKC", text)))
-    labels = {m.start(2): f"{m.group(1).casefold()} {m.group(2)}" for m in _LABEL.finditer(text)}
-    return [(m.group().replace(",", ""), labels.get(m.start())) for m in _NUMBER.finditer(text)]
+    text = _clean(text)
+    durations = _durations(text)
+    labels = {
+        m.start(2): f"{m.group(1).casefold()} {m.group(2)}"
+        for m in _LABEL.finditer(text)
+        if m.start(2) not in durations
+    }
+    return [
+        (m.group().replace(",", ""), labels.get(m.start()), durations.get(m.start()))
+        for m in _NUMBER.finditer(text)
+    ]
 
 
 @traced
@@ -208,16 +243,24 @@ def _label_in_papers(phrase: str, cited: list[Paper]) -> bool:
 
 @traced
 def _missing_numbers(claim: str, good: list[LLMQuote], cited: list[Paper]) -> list[str]:
-    """Claim numbers not backed up, each once, in claim order (C8, C8c to C8e).
+    """Claim numbers not backed up, each once, in claim order (C8, C8c to C8e, C8h).
 
-    Label numbers need their phrase in a cited title or abstract; measurements need the
+    Label numbers need their phrase in a cited title or abstract; durations need the same
+    number and unit in the good quotes or a cited title or abstract; measurements need the
     number in the good quotes, where label numbers do not count as evidence (C8e).
     """
-    quoted = _read_numbers(" ".join(q.text for q in good))
-    evidence = {value for value, label in quoted if label is None}
+    quotes = " ".join(q.text for q in good)
+    evidence = {value for value, label, _ in _read_numbers(quotes) if label is None}
+    sources = [quotes] + [f"{p.title} {p.abstract or ''}" for p in cited]
+    known_durations = {d for text in sources for d in _durations(_clean(text)).values()}
     missing: list[str] = []
-    for value, label in _read_numbers(claim):
-        ok = _label_in_papers(label, cited) if label else value in evidence
+    for value, label, duration in _read_numbers(claim):
+        if duration:
+            ok = duration in known_durations
+        elif label:
+            ok = _label_in_papers(label, cited)
+        else:
+            ok = value in evidence
         if not ok and value not in missing:
             missing.append(value)
     return missing

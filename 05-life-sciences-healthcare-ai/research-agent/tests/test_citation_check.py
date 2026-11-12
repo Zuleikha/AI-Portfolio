@@ -750,3 +750,67 @@ def test_en_dash_label_matches() -> None:  # C8b, my own test
     result = search_result(paper("111", SUSTAIN_ABSTRACT))
     checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
     assert verified_texts(checked) == [claim]
+
+
+# ---------------------------------------------------------- Stage 5 revision 2 (C8f to C8i, K4)
+
+WEEKS_ABSTRACT = "In a 12 weeks trial, drug X lowered HbA1c by 1.1% versus placebo."
+
+
+def test_duration_in_abstract_not_in_quote() -> None:  # C8f, C8h
+    quote = "drug X lowered HbA1c by 1.1% versus placebo"
+    claim = "In a 12-week trial, drug X lowered HbA1c by 1.1% versus placebo."
+    result = search_result(paper("111", WEEKS_ABSTRACT))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert verified_texts(checked) == [claim]
+
+
+def test_duration_beats_label() -> None:  # C8g
+    abstract = "VERIFY was a 5-year trial. Combination therapy lowered risk of failure by half."
+    quote = "Combination therapy lowered risk of failure by half"
+    claim = "In the VERIFY 5-year trial, combination therapy lowered risk of failure by half."
+    result = search_result(paper("111", abstract))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert verified_texts(checked) == [claim]
+
+
+def test_short_unit_in_paper() -> None:  # C8f
+    abstract = "Metformin decreased 2-h PG and fasting glucose compared to placebo."
+    quote = "Metformin decreased 2-h PG and fasting glucose"
+    claim = "Metformin decreased 2-hour glucose and fasting glucose."
+    result = search_result(paper("111", abstract))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert verified_texts(checked) == [claim]
+
+
+@pytest.mark.parametrize(
+    ("claim", "missing"),
+    [
+        ("In a 24-week trial, drug X lowered HbA1c by 1.1% versus placebo.", "24"),
+        ("In a 12-month trial, drug X lowered HbA1c by 1.1% versus placebo.", "12"),
+    ],
+    ids=["other-number", "wrong-unit"],
+)
+def test_duration_not_in_cited_paper(claim: str, missing: str) -> None:  # C8h
+    quote = "drug X lowered HbA1c by 1.1% versus placebo"
+    result = search_result(paper("111", WEEKS_ABSTRACT))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert checked.failed[0].reasons == [f"number missing: {missing}"]
+
+
+def test_duration_only_in_uncited_paper() -> None:  # C8h
+    abstract = "Drug X lowered HbA1c by 1.1% versus placebo in adults."
+    quote = "Drug X lowered HbA1c by 1.1% versus placebo"
+    claim = "In a 12-week trial, drug X lowered HbA1c by 1.1% versus placebo."
+    result = search_result(paper("111", abstract), paper("222", WEEKS_ABSTRACT))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert checked.failed[0].reasons == ["number missing: 12"]
+
+
+def test_decimal_is_not_a_duration() -> None:  # C8f, C8d
+    abstract = "Over 1.5-year follow-up, drug X lowered HbA1c by 1.1% versus placebo."
+    quote = "drug X lowered HbA1c by 1.1% versus placebo"
+    claim = "Over 1.5-year follow-up, drug X lowered HbA1c by 1.1% versus placebo."
+    result = search_result(paper("111", abstract))
+    checked = check_one(claim, ["111"], check_reply("supported", ("111", quote)), result)
+    assert checked.failed[0].reasons == ["number missing: 1.5"]

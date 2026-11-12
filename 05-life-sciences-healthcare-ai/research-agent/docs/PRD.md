@@ -23,6 +23,7 @@ approved by the user before it is built.
 | 4 | Summarise step | ✅ Section below, APPROVED |
 | 5 | Citation check step | ✅ Section below, APPROVED |
 | 5r | Stage 5 revision: C8 number fixes (K2, K3) | Section below, APPROVED |
+| 5r2 | Stage 5 revision 2: study-length numbers (K4) | Section below, APPROVED |
 | 6 | Graph, audit log, first run | Section below, APPROVED |
 | 7 | Tracing with Langfuse or LangSmith | Section below, APPROVED (LangSmith) |
 | 6r | Stage 6 revision: easier-to-read terminal output (O1 to O7) | Section below, APPROVED |
@@ -561,6 +562,56 @@ No paid test change: the Stage 5 and Stage 6 paid tests stay as they are (user O
 - All tests pass (incl. `c993ef6` unchanged); `ruff check`, `ruff format --check`, `mypy --strict` clean
 - `PROGRESS.md` K2 and K3 marked fixed; committed
 - Paid live test re-run only with the user's OK
+
+---
+
+## Stage 5 revision 2: study-length numbers (K4)
+
+Status: **APPROVED by user 2026-11-12**. Changes C8 only; nothing else in Stage 5 changes.
+
+### Why
+
+Demo re-record (2026-11-12, `runs/20261112T102459Z_3b55c28e.json`): 4 claims failed, 2 of them
+only because of a study length:
+
+| Claim had | Cited abstract had | Quote | Result today | Cause |
+|---|---|---|---|---|
+| `VERIFY 5-year` | `a 5-year`, `5-year study` | had `5-year` | `number missing: 5` | C8b reads `VERIFY 5` as a **label**; `verify 5` is not in the abstract |
+| `12-week` | `12 weeks` | no length | `number missing: 12` | a study length must be quoted (C8d) |
+
+### Rules
+
+| # | Rule |
+|---|---|
+| C8f | **Duration number (K4).** A whole number joined by one space, hyphen or en dash to a time unit is a *duration*: `hour`, `day`, `week`, `month`, `year`, singular or plural, case ignored (`5-year`, `12 weeks`, `2-hour`). In paper text the short forms `h`, `hr`, `wk`, `yr` also count (`2-h`). Not a decimal, not a percent. |
+| C8g | A duration is **never a label**: C8f is checked before C8b (`VERIFY 5-year` is a duration, not `VERIFY 5`). |
+| C8h | A duration **passes if the same number with the same unit** is in the good quotes **or** in the title or abstract of a paper the claim cites (any of the forms in C8f). Otherwise → `number missing: <n>` (same text as now). |
+| C8i | Every other number keeps C8a to C8e. A number used as a duration in one place and a measurement in another: the measurement still needs the quotes (as C8e). |
+
+### Tests (written first, failing before the code)
+
+| Test | Checks |
+|---|---|
+| duration in abstract, not in quote | claim `12-week`, abstract `12 weeks`, quote has the other numbers only → verified (C8f, C8h) |
+| duration beats label | claim `VERIFY 5-year`, abstract `a 5-year trial`, `VERIFY 5` nowhere → verified (C8g) |
+| short unit in paper | claim `2-hour glucose`, abstract `2-h PG` → no `number missing: 2` (C8f) |
+| duration not in cited paper | claim `24-week`, abstract `12 weeks` → `number missing: 24` (C8h) |
+| duration only in uncited paper | claim `12-week`, phrase only in an uncited paper → `number missing: 12` (C8h) |
+| wrong unit | claim `12-month`, abstract `12 weeks` → `number missing: 12` (C8h) |
+| decimal is not a duration | claim `1.5-year`, abstract `1.5-year`, quote lacks it → `number missing: 1.5` (C8f, C8d) |
+| existing tests | all C8a to C8e tests still pass unchanged |
+| guards already green | `short unit in paper`, `not in cited paper` (2 cases), `uncited paper`, `decimal` pass today and must still pass after the fix (they stop C8f to C8h being too loose). Red today: the first 2 rows. |
+
+### Known limit
+
+A duration from another part of the abstract can pass (claim `2-week trial`, abstract mentions a
+`2-week run-in`). The model verdict (C5) is the guard, as for K3 labels.
+
+### Done when
+
+- All tests pass; ruff, ruff format, mypy --strict clean
+- Offline replay of the 2 real K4 fails from `runs/20261112T102459Z_3b55c28e.json` shows no `number missing` for the duration
+- One paid check run with the user's OK; K4 marked fixed in `PROGRESS.md`; committed
 
 ---
 
