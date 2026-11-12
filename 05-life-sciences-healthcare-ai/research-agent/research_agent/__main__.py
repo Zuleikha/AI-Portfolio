@@ -22,7 +22,7 @@ EXIT_OK = 0
 EXIT_NO_CONSENT = 2
 WRAP_WIDTH = 88  # O3
 RULE = "─" * 40  # O1, O2
-INDENT = " " * 5  # O3, O4
+MAX_JOURNAL_CHARS = 50  # O4
 
 
 @traced
@@ -52,7 +52,10 @@ def _short_citation(paper: dict[str, Any]) -> str:
         parts.append(f"{authors[0]} et al." if len(authors) > 1 else authors[0])
     if paper["year"] is not None:
         parts.append(str(paper["year"]))
-    return f"{' '.join(parts)} · {paper['journal']}"
+    journal: str = paper["journal"]
+    if len(journal) > MAX_JOURNAL_CHARS:
+        journal = journal[: MAX_JOURNAL_CHARS - 1] + "…"
+    return f"{' '.join(parts)} · {journal}"
 
 
 @traced
@@ -73,16 +76,15 @@ def format_report(record: dict[str, Any], path: Path) -> str:
     if not verified:
         lines += ["", "No verified claims."]
     for number, claim in enumerate(verified, start=1):
+        marker = f"✔ {number}. "
+        indent = " " * len(marker)  # O3: line up under the claim text
         lines.append("")
         lines += textwrap.wrap(
-            claim["text"],
-            width=WRAP_WIDTH,
-            initial_indent=f"✔ {number}. ",
-            subsequent_indent=INDENT,
+            claim["text"], width=WRAP_WIDTH, initial_indent=marker, subsequent_indent=indent
         )
         for pmid in claim["pmids"]:
-            lines.append(INDENT + _short_citation(papers[pmid]))
-            lines.append(INDENT + papers[pmid]["url"])
+            lines.append(indent + _short_citation(papers[pmid]))
+            lines.append(indent + papers[pmid]["url"])
     lines += ["", f"✘ Failed: {counts['failed']} (reasons in the audit record)"]
     lines += ["", f"Audit record: {path}"]
     return "\n".join(lines)

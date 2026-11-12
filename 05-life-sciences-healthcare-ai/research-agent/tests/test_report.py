@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import Any
 
-from research_agent.__main__ import RULE, WRAP_WIDTH, format_report
+from research_agent.__main__ import MAX_JOURNAL_CHARS, RULE, WRAP_WIDTH, format_report
 
 PATH = Path("runs/20261112T094819Z_0ee2c803.json")
 
@@ -101,3 +101,25 @@ def test_no_verified_claims() -> None:  # O6
     assert "No verified claims." in out
     assert "✔ 1." not in out
     assert out.endswith(f"Audit record: {PATH}")
+
+
+def test_claim_ten_lines_up() -> None:  # O3
+    papers = [paper(str(n)) for n in range(1, 11)]
+    text = " ".join(["Drug X lowered blood pressure in adults"] * 4)
+    claims = [{"text": text, "pmids": [p["pmid"]]} for p in papers]
+    lines = format_report(record(claims, papers), PATH).splitlines()
+    start = next(i for i, line in enumerate(lines) if line.startswith("✔ 10. "))
+    block = lines[start + 1 : lines.index("", start)]
+    assert block  # wrapped lines + citation + url
+    assert all(line.startswith(" " * 6) and line[6] != " " for line in block)
+
+
+def test_long_journal_cut() -> None:  # O4
+    long_name = "J" * 60
+    exact = "K" * MAX_JOURNAL_CHARS
+    papers = [paper("1", journal=long_name), paper("2", journal=exact)]
+    claims = [{"text": f"Claim {p['pmid']}.", "pmids": [p["pmid"]]} for p in papers]
+    out = format_report(record(claims, papers), PATH)
+    assert f"· {'J' * (MAX_JOURNAL_CHARS - 1)}…\n" in out
+    assert long_name not in out
+    assert f"· {exact}\n" in out

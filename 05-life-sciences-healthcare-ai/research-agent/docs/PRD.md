@@ -768,8 +768,8 @@ Audit record: runs/20261112T094819Z_0ee2c803.json
 |---|---|
 | O1 | Header: `Research Agent · "<query>"`, then `RULE`. |
 | O2 | Counts: `Papers · Claims · ✔ Verified · ✘ Failed` on one line; `Skipped · Rejected · Injection warnings` on the next; then `RULE`. |
-| O3 | Each verified claim after a blank line: `✔ <n>. <text>`, wrapped at `WRAP_WIDTH`; wrapped lines indented 5 spaces. |
-| O4 | Under the claim, per cited PMID (5-space indent): short citation `<first author>[ et al.] <year> · <journal>`, then its URL on its own line. ` et al.` only if more than 1 author; year left out if unknown; no author → starts at year. Full citation stays in the record (G8). |
+| O3 | Each verified claim after a blank line: `✔ <n>. <text>`, wrapped at `WRAP_WIDTH`; wrapped lines and its citation lines line up under the claim text (5 spaces for claims 1 to 9, 6 for 10 to 99). |
+| O4 | Under the claim, per cited PMID (5-space indent): short citation `<first author>[ et al.] <year> · <journal>`, then its URL on its own line. ` et al.` only if more than 1 author; year left out if unknown; no author → starts at year. Journal names over `MAX_JOURNAL_CHARS = 50` are cut to 49 characters + `…`. Full citation stays in the record (G8). |
 | O5 | After the claims, a blank line, then `✘ Failed: <n> (reasons in the audit record)`. Failed claim text is never printed (G-Q2). |
 | O6 | No verified claims → `No verified claims.` in place of the list. |
 | O7 | Last line: `Audit record: <path>` (stays visible at the end of the output). |
@@ -783,6 +783,8 @@ Audit record: runs/20261112T094819Z_0ee2c803.json
 | long claim wraps | no line over `WRAP_WIDTH`; wrapped lines start with 5 spaces (O3) |
 | short citation variants | 1 author → no `et al.`; no year → year left out; no authors → starts at year (O4) |
 | no verified claims | prints `No verified claims.` (O6) |
+| claim 10 lines up | claim 10's wrapped and citation lines start with 6 spaces (O3; added 2026-11-12 after the second recording) |
+| long journal cut | 60-character journal → first 49 characters + `…`; 50 characters → unchanged (O4; added 2026-11-12) |
 
 ### Done when
 
